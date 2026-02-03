@@ -35,8 +35,8 @@ loadGuards().then(loaded => {
 export const admins = [
   {
     id: 1,
-    email: 'admin@patrol.com',
-    password: bcrypt.hashSync('admin123', 10),
+    email: 'kenyaniemmanuel44@gmail.com',
+    password: '$2b$10$KHcLCoN0TYO2K2Q4.Nc5EeFVgIzt3KakDHFPBKqfupd3At22gyNma',
     role: 'admin',
   },
 ]
