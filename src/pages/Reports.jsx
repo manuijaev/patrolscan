@@ -27,6 +27,11 @@ export default function Reports() {
 
       const now = new Date()
       switch (dateRange) {
+        case 'all':
+          // Fetch all scans - set very wide date range
+          startDate = new Date('2020-01-01').toISOString()
+          endDate = new Date('2030-12-31').toISOString()
+          break
         case 'today':
           startDate = new Date(now.setHours(0, 0, 0, 0)).toISOString()
           endDate = new Date(now.setHours(23, 59, 59, 999)).toISOString()
@@ -44,8 +49,8 @@ export default function Reports() {
           endDate = new Date(customEnd).toISOString()
           break
         default:
-          startDate = new Date(now.setHours(0, 0, 0, 0)).toISOString()
-          endDate = new Date().toISOString()
+          startDate = new Date('2020-01-01').toISOString()
+          endDate = new Date('2030-12-31').toISOString()
       }
 
       const res = await api.get(`/scans/date-range?startDate=${startDate}&endDate=${endDate}`, {
@@ -172,6 +177,7 @@ export default function Reports() {
                 className="flex-1 rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2
                   focus:outline-none focus:border-[color:var(--accent)]"
               >
+                <option value="all">All Time</option>
                 <option value="today">Today</option>
                 <option value="week">Last 7 Days</option>
                 <option value="month">Last 30 Days</option>

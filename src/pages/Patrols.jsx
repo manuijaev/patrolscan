@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../api/axios'
+import { getToken } from '../auth/authStore'
 
 function formatTime(iso) {
   if (!iso) return '—'
@@ -16,7 +17,10 @@ export default function Patrols() {
 
     async function loadLogs() {
       try {
-        const res = await api.get('/patrols')
+        const token = getToken()
+        const res = await api.get('/scans', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
         if (active) setLogs(res.data)
       } catch (err) {
         console.error('Failed to load patrols', err)
@@ -40,10 +44,6 @@ export default function Patrols() {
             Review every scan with server-verified timestamps.
           </p>
         </div>
-        <button className="px-4 py-2 rounded-xl bg-[color:var(--accent)]
-          hover:bg-[color:var(--accent-strong)] transition text-sm font-semibold">
-          Export
-        </button>
       </div>
 
       <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-6 shadow-[var(--shadow)]">
@@ -71,10 +71,9 @@ export default function Patrols() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[color:var(--text-muted)] border-b border-[color:var(--border)]">
-                  <th className="py-2 pr-4 font-medium">Guard ID</th>
+                  <th className="py-2 pr-4 font-medium">Time</th>
+                  <th className="py-2 pr-4 font-medium">Guard</th>
                   <th className="py-2 pr-4 font-medium">Checkpoint</th>
-                  <th className="py-2 pr-4 font-medium">Device Time</th>
-                  <th className="py-2 pr-4 font-medium">Server Time</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,16 +82,11 @@ export default function Patrols() {
                     key={log.id}
                     className="border-b border-[color:var(--border)]/70 text-[color:var(--text)]"
                   >
-                    <td className="py-3 pr-4">{log.guardId}</td>
-                    <td className="py-3 pr-4 font-mono text-xs">
-                      {log.checkpointCode}
-                    </td>
                     <td className="py-3 pr-4">
                       {formatTime(log.scannedAt)}
                     </td>
-                    <td className="py-3 pr-4">
-                      {formatTime(log.serverAt)}
-                    </td>
+                    <td className="py-3 pr-4">{log.guardName}</td>
+                    <td className="py-3 pr-4">{log.checkpointName}</td>
                   </tr>
                 ))}
               </tbody>
