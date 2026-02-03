@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: patrol-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm run dev
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /

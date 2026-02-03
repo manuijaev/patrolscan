@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #f6f8fb;
+  --color-bg-muted: #eef2f7;
+  --color-panel: #ffffff;
+  --color-panel-strong: #f9fbff;
+  --color-border: #dfe6f0;
+  --color-text: #0f172a;
+  --color-text-muted: #5b6b7d;
+  --color-accent: #12b5c6;
+  --color-accent-strong: #0e99aa;
+  --color-accent-soft: rgba(18, 181, 198, 0.15);
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+
+  /* Dark mode variables */
+  --color-bg-dark: #060b14;
+  --color-bg-muted-dark: #0b1220;
+  --color-panel-dark: #0b1220;
+  --color-panel-strong-dark: #111a2a;
+  --color-border-dark: #1f2a3a;
+  --color-text-dark: #e2e8f0;
+  --color-text-muted-dark: #8a9bb2;
+  --color-accent-dark: #1ccad8;
+  --color-accent-strong-dark: #14a3b0;
+  --color-accent-soft-dark: rgba(28, 202, 216, 0.18);
+  --shadow-dark: 0 16px 36px rgba(0, 0, 0, 0.35);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root,
+.light {
+  --bg: var(--color-bg);
+  --bg-muted: var(--color-bg-muted);
+  --panel: var(--color-panel);
+  --panel-strong: var(--color-panel-strong);
+  --border: var(--color-border);
+  --text: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-soft: var(--color-accent-soft);
+  --shadow: var(--shadow);
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: var(--color-bg-dark);
+  --bg-muted: var(--color-bg-muted-dark);
+  --panel: var(--color-panel-dark);
+  --panel-strong: var(--color-panel-strong-dark);
+  --border: var(--color-border-dark);
+  --text: var(--color-text-dark);
+  --text-muted: var(--color-text-muted-dark);
+  --accent: var(--color-accent-dark);
+  --accent-strong: var(--color-accent-strong-dark);
+  --accent-soft: var(--color-accent-soft-dark);
+  --shadow: var(--shadow-dark);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}

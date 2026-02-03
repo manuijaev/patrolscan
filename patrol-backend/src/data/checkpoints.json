@@ -1,0 +1,17 @@
+[
+  {
+    "id": "cp-1770147996002-9c1kkardv",
+    "name": "Gate B",
+    "location": "watchman towerz",
+    "description": "close to the ceo's office",
+    "createdAt": "2026-02-03T19:46:36.003Z",
+    "updatedAt": "2026-02-03T20:02:30.134Z"
+  },
+  {
+    "id": "cp-1770148807186-0wpbt0w6j",
+    "name": "Gate A",
+    "location": "zion hall",
+    "description": "",
+    "createdAt": "2026-02-03T20:00:07.186Z"
+  }
+]

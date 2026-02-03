@@ -1,0 +1,14 @@
+[
+  {
+    "id": 2,
+    "name": "ZACK",
+    "pin": "$2b$10$2tFl5BAtQ5Z8fDeozqiOx.U9jE7uvjjZar5dcYlHmrCym3RtwPQua",
+    "role": "guard"
+  },
+  {
+    "id": 3,
+    "name": "MA",
+    "pin": "$2b$10$8CpY5WpWHJxsWlkOcWGPB.x4tetPrWb7rmieP3hqi4kdJxrdaZUIe",
+    "role": "guard"
+  }
+]
