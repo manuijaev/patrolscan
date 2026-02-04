@@ -75,7 +75,7 @@ export const getByDateRange = async (req, res) => {
 export const recordScan = async (req, res) => {
   try {
     const guardId = req.user.id
-    const { checkpointId, latitude, longitude, notes } = req.body
+    const { checkpointId, checkpointName, latitude, longitude, notes, designatedUser } = req.body
     
     if (!guardId || !checkpointId) {
       return res.status(400).json({ error: 'Guard ID and Checkpoint ID are required' })
@@ -94,15 +94,19 @@ export const recordScan = async (req, res) => {
       return res.status(404).json({ error: 'Checkpoint not found' })
     }
     
-    // Check if guard is assigned to this checkpoint
-    const assignedCheckpoints = guard.assignedCheckpoints || []
-    const isAssigned = assignedCheckpoints.includes(checkpointId)
+    // Check if guard is designated for this checkpoint (validate designatedUser from QR)
+    // The QR code should contain "designatedUser" field that matches the guard's name
+    let isDesignated = true
+    if (designatedUser) {
+      // Compare case-insensitively
+      isDesignated = designatedUser.toLowerCase().trim() === guard.name.toLowerCase().trim()
+    }
     
-    if (!isAssigned) {
+    if (!isDesignated) {
       return res.status(403).json({ 
-        error: 'Not assigned',
-        message: 'You are not assigned to this checkpoint',
-        assigned: false
+        error: 'Not designated',
+        message: `This checkpoint is designated for ${designatedUser}. You are ${guard.name}`,
+        designated: false
       })
     }
     
@@ -119,7 +123,7 @@ export const recordScan = async (req, res) => {
       guardName: guard.name,
       checkpointName: checkpoint.name,
       message: 'Scan recorded successfully',
-      assigned: true
+      designated: true
     })
   } catch (error) {
     res.status(500).json({ error: 'Failed to record scan' })

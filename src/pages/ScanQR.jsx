@@ -286,6 +286,7 @@ export default function ScanQR() {
 
       const checkpointId = qrData.id
       const checkpointName = qrData.checkpointName || qrData.name || 'Unknown Checkpoint'
+      const designatedUser = qrData.designatedUser || qrData.guardName || null
 
       setCurrentCheckpoint({
         id: checkpointId,
@@ -306,7 +307,7 @@ export default function ScanQR() {
       clearTimeout(safetyTimeoutRef.current)
       
       // Process the scan
-      await processScan(checkpointId, checkpointName)
+      await processScan(checkpointId, checkpointName, designatedUser)
 
     } catch (error) {
       console.error('Scan error:', error)
@@ -316,12 +317,13 @@ export default function ScanQR() {
   }
 
   // Process scan (API call)
-  const processScan = async (checkpointId, checkpointName) => {
+  const processScan = async (checkpointId, checkpointName, designatedUser) => {
     try {
       const token = getToken()
       const scanPayload = {
         checkpointId: checkpointId,
         checkpointName: checkpointName,
+        designatedUser: designatedUser,
         latitude: userLocation?.latitude || null,
         longitude: userLocation?.longitude || null,
         accuracy: userLocation?.accuracy || null,
@@ -329,7 +331,7 @@ export default function ScanQR() {
         timestamp: new Date().toISOString()
       }
 
-      let isAssigned = false
+      let isDesignated = false
       let errorMessage = ''
       
       if (isOnline) {
@@ -338,10 +340,10 @@ export default function ScanQR() {
             headers: { Authorization: `Bearer ${token}` },
           })
           
-          // Check if guard is assigned to this checkpoint
-          isAssigned = res.data.assigned === true
+          // Check if guard is designated for this checkpoint
+          isDesignated = res.data.designated === true
           
-          if (isAssigned) {
+          if (isDesignated) {
             // Auto-unassign checkpoint from guard after successful scan
             try {
               await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
@@ -353,20 +355,20 @@ export default function ScanQR() {
             }
           }
         } catch (err) {
-          // Check if error is "not assigned"
-          if (err.response?.data?.assigned === false) {
-            isAssigned = false
-            errorMessage = 'Not assigned to this checkpoint'
+          // Check if error is "not designated"
+          if (err.response?.data?.designated === false) {
+            isDesignated = false
+            errorMessage = err.response?.data?.message || 'Not designated for this checkpoint'
           } else {
             // Save offline if server fails (for other errors)
             await saveOfflineScan(scanPayload)
-            isAssigned = true
+            isDesignated = true
           }
         }
       } else {
-        // Offline mode - assume assigned
+        // Offline mode - assume designated
         await saveOfflineScan(scanPayload)
-        isAssigned = true
+        isDesignated = true
       }
 
       // Clear any safety timeout since we're handling it
@@ -375,11 +377,11 @@ export default function ScanQR() {
         safetyTimeoutRef.current = null
       }
 
-      if (isAssigned) {
+      if (isDesignated) {
         localStorage.setItem(`lastScan_${checkpointId}`, Date.now().toString())
         completeScan(true, checkpointId, checkpointName)
       } else {
-        completeScan(false, null, errorMessage || 'Not Assigned')
+        completeScan(false, null, errorMessage || 'Not Designated')
       }
     } catch (error) {
       console.error('Process scan error:', error)
