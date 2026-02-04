@@ -16,7 +16,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState('today')
   const [customStart, setCustomStart] = useState('')
-  const [customEmnd, setCustomEnd] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
 
   async function loadScans() {
