@@ -5,6 +5,7 @@ import {
   updateGuardController,
   removeGuard,
   assignCheckpointsController,
+  unassignCheckpointController,
 } from '../controllers/guards.controller.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 
