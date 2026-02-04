@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { Toaster, toast } from 'react-hot-toast'
 import {
@@ -12,16 +12,16 @@ import {
   IconLoader2,
   IconAlertCircle,
   IconRefresh,
-  IconWifiOff,
   IconLocation,
-  IconShieldCheck,
-  IconDeviceMobile,
   IconCameraOff,
   IconCameraRotate
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan, getOfflineScans } from '../offline/db'
 import { getToken, getUser } from '../auth/authStore'
+
+const COOLDOWN_MS = 120000 // 2 minutes
+const SCAN_PAUSE_MS = 2000 // 2 seconds pause after scan
 
 export default function ScanQR() {
   const qrRef = useRef(null)
@@ -30,11 +30,13 @@ export default function ScanQR() {
   const [lastScans, setLastScans] = useState([])
   const [userLocation, setUserLocation] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [loading, setLoading] = useState(false)
   const [cameraError, setCameraError] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [cooldownActive, setCooldownActive] = useState(false)
+  const [cooldownTime, setCooldownTime] = useState(0)
 
-  // Get user info
   const user = getUser()
+  const cooldownTimerRef = useRef(null)
 
   // Network status
   useEffect(() => {
@@ -61,9 +63,14 @@ export default function ScanQR() {
     loadRecentScans()
     loadOfflineScans()
     getLocation()
+
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current)
+      }
+    }
   }, [])
 
-  // Get user location
   async function getLocation() {
     if ('geolocation' in navigator) {
       try {
@@ -81,7 +88,6 @@ export default function ScanQR() {
         })
       } catch (err) {
         console.log('Location not available:', err)
-        toast.error('Location access denied. Scans will continue without location data.')
       }
     }
   }
@@ -102,12 +108,30 @@ export default function ScanQR() {
     try {
       const offlineScans = await getOfflineScans()
       if (offlineScans.length > 0) {
-        toast(`You have ${offlineScans.length} offline scans saved locally`)
+        toast(`You have ${offlineScans.length} offline scans saved`)
       }
     } catch (err) {
       console.error('Failed to load offline scans', err)
     }
   }
+
+  // Start cooldown timer
+  const startCooldown = useCallback((checkpointId) => {
+    const endTime = Date.now() + COOLDOWN_MS
+    setCooldownActive(true)
+    setCooldownTime(COOLDOWN_MS / 1000)
+
+    cooldownTimerRef.current = setInterval(() => {
+      const remaining = Math.ceil((endTime - Date.now()) / 1000)
+      setCooldownTime(remaining)
+
+      if (remaining <= 0) {
+        clearInterval(cooldownTimerRef.current)
+        setCooldownActive(false)
+        setCooldownTime(0)
+      }
+    }, 1000)
+  }, [])
 
   // Initialize QR Scanner
   useEffect(() => {
@@ -125,7 +149,6 @@ export default function ScanQR() {
           return
         }
 
-        // Find back camera
         const backCamera = devices.find(d => 
           d.label.toLowerCase().includes('back') || 
           d.label.toLowerCase().includes('rear') ||
@@ -138,18 +161,19 @@ export default function ScanQR() {
           backCamera.id,
           { fps: 10, qrbox: { width: 250, height: 250 } },
           async (decodedText) => {
+            if (isProcessing || cooldownActive) return
             await handleScan(decodedText)
           },
-          (errorMessage) => {
-            // Ignore scan errors - they're expected when no QR is in view
-          }
+          () => {} // Ignore scan errors
         )
 
         isMounted && setScanning(true)
       } catch (err) {
         console.error('Camera initialization error:', err)
         setCameraError(true)
-        toast.error('Failed to initialize camera')
+        if (err.name !== 'NotFoundError') {
+          toast.error('Failed to initialize camera')
+        }
       }
     }
 
@@ -161,35 +185,39 @@ export default function ScanQR() {
         scannerRef.current.stop().catch(() => {})
       }
     }
-  }, [scanning])
+  }, [scanning, isProcessing, cooldownActive])
 
   // Handle QR scan
   const handleScan = async (decodedText) => {
-    setLoading(true)
-    
+    setIsProcessing(true)
+
     try {
-      // Parse QR code content
       let qrData
       try {
         qrData = JSON.parse(decodedText)
       } catch {
-        toast.error('Invalid QR code format')
-        setLoading(false)
+        toast.error('Invalid QR code format', { id: 'scan-error' })
+        setTimeout(() => setIsProcessing(false), 5000)
         return
       }
 
-      // Validate QR data
       if (qrData.type !== 'patrol-checkpoint' || !qrData.id) {
-        toast.error('Invalid patrol checkpoint QR')
-        setLoading(false)
+        toast.error('Invalid patrol checkpoint QR', { id: 'scan-error' })
+        setTimeout(() => setIsProcessing(false), 5000)
         return
       }
 
       const checkpointId = qrData.id
       const checkpointName = qrData.checkpointName || qrData.name
 
-      // Show scanning toast
-      const scanToast = toast.loading(`Scanning ${checkpointName}...`)
+      // Check cooldown
+      const lastScanTime = localStorage.getItem(`lastScan_${checkpointId}`)
+      if (lastScanTime && (Date.now() - parseInt(lastScanTime)) < COOLDOWN_MS) {
+        const remaining = Math.ceil((COOLDOWN_MS - (Date.now() - parseInt(lastScanTime))) / 1000)
+        toast.error(`Please wait ${remaining}s before scanning again`, { id: 'scan-error' })
+        setTimeout(() => setIsProcessing(false), 5000)
+        return
+      }
 
       // Prepare scan payload
       const token = getToken()
@@ -203,12 +231,16 @@ export default function ScanQR() {
         timestamp: new Date().toISOString()
       }
 
+      // Save last scan time
+      localStorage.setItem(`lastScan_${checkpointId}`, Date.now().toString())
+      startCooldown(checkpointId)
+
       if (isOnline) {
         try {
-          const res = await api.post('/scans/record', scanPayload, {
+          await api.post('/scans/record', scanPayload, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          toast.success(`Checked in at ${checkpointName}`, { id: scanToast })
+          toast.success(`Checked in at ${checkpointName}`, { id: 'scan-success' })
           
           // Vibrate on success
           if ('vibrate' in navigator) {
@@ -216,19 +248,21 @@ export default function ScanQR() {
           }
         } catch (err) {
           await saveOfflineScan(scanPayload)
-          toast('Saved offline (network issue)', { id: scanToast })
+          toast.success(`Checked in at ${checkpointName} (offline)`, { id: 'scan-success' })
         }
       } else {
         await saveOfflineScan(scanPayload)
-        toast('Scan saved offline', { id: scanToast })
+        toast.success(`Checked in at ${checkpointName} (offline)`, { id: 'scan-success' })
       }
 
       await loadRecentScans()
-      setLoading(false)
+
+      // Pause scanner briefly
+      setTimeout(() => setIsProcessing(false), SCAN_PAUSE_MS)
     } catch (error) {
       console.error('Scan error:', error)
-      toast.error('Failed to process scan')
-      setLoading(false)
+      toast.error('Failed to process scan', { id: 'scan-error' })
+      setTimeout(() => setIsProcessing(false), 5000)
     }
   }
 
@@ -241,6 +275,7 @@ export default function ScanQR() {
     }
     setCameraError(false)
     setScanning(false)
+    setIsProcessing(false)
     setTimeout(() => setScanning(true), 500)
   }
 
@@ -251,8 +286,6 @@ export default function ScanQR() {
     try {
       const devices = await Html5Qrcode.getCameras()
       const currentCameraId = scannerRef.current.id
-
-      // Find different camera
       const otherCamera = devices.find(d => d.id !== currentCameraId)
       
       if (otherCamera) {
@@ -262,29 +295,24 @@ export default function ScanQR() {
           otherCamera.id,
           { fps: 10, qrbox: { width: 250, height: 250 } },
           async (decodedText) => {
-            await handleScan(decodedText)
+            if (!isProcessing && !cooldownActive) {
+              await handleScan(decodedText)
+            }
           },
           () => {}
         )
 
-        toast.success('Camera switched')
+        toast.success('Camera switched', { id: 'camera-switch' })
       }
     } catch (err) {
       console.error('Failed to switch camera:', err)
-      toast.error('Failed to switch camera')
+      toast.error('Failed to switch camera', { id: 'camera-error' })
     }
   }
 
-  // Format time
   function formatTime(isoString) {
     const date = new Date(isoString)
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  // Format date
-  function formatDate(isoString) {
-    const date = new Date(isoString)
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 
   return (
@@ -341,7 +369,7 @@ export default function ScanQR() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <IconScan size={22} className="text-blue-600 dark:text-blue-400" />
-                  Scan Checkpoint QR Code
+                  Scan Checkpoint
                 </h2>
                 <button
                   onClick={toggleCamera}
@@ -379,12 +407,22 @@ export default function ScanQR() {
                       className="w-full rounded-2xl overflow-hidden bg-black"
                       style={{ height: '350px' }}
                     />
-                    {loading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl">
-                        <div className="flex flex-col items-center gap-2 text-white">
-                          <IconLoader2 size={32} className="animate-spin" />
-                          <span>Processing...</span>
-                        </div>
+                    
+                    {/* Processing Overlay */}
+                    {(isProcessing || cooldownActive) && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-2xl">
+                        {cooldownActive ? (
+                          <div className="text-white text-center">
+                            <IconClock size={48} className="mx-auto mb-2" />
+                            <p className="text-xl font-bold">{cooldownTime}s</p>
+                            <p className="text-sm opacity-75">Cooldown</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-white">
+                            <IconLoader2 size={32} className="animate-spin" />
+                            <span>Processing...</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
@@ -425,7 +463,7 @@ export default function ScanQR() {
               ) : (
                 <div className="text-center py-8">
                   <IconQrcode size={48} className="mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-500">No scans yet. Start scanning!</p>
+                  <p className="text-gray-500">No scans yet</p>
                 </div>
               )}
             </div>
