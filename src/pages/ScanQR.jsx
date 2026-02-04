@@ -179,14 +179,14 @@ export default function ScanQR() {
       }
 
       // Validate QR data
-      if (qrData.type !== 'patrol-checkpoint' || !qrData.id || !qrData.checkpointName) {
+      if (qrData.type !== 'patrol-checkpoint' || !qrData.id) {
         toast.error('Invalid patrol checkpoint QR')
         setLoading(false)
         return
       }
 
       const checkpointId = qrData.id
-      const checkpointName = qrData.checkpointName
+      const checkpointName = qrData.checkpointName || qrData.name
 
       // Show scanning toast
       const scanToast = toast.loading(`Scanning ${checkpointName}...`)
