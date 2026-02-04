@@ -6,7 +6,8 @@ import {
   IconCheck,
   IconMapPin,
   IconHistory,
-  IconClock
+  IconClock,
+  IconQrcode
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
@@ -175,47 +176,47 @@ export default function ScanQR() {
   }
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
+    <div className="max-w-md mx-auto space-y-4 px-4 py-6 sm:px-0">
       <Toaster position="top-center" />
 
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold">Scan Checkpoint</h1>
-        <p className="text-sm text-[color:var(--text-muted)]">
-          Welcome, {user?.name}. Align the QR code to scan.
+      <div className="text-center sm:text-left">
+        <h1 className="text-2xl font-bold">Scan Checkpoint</h1>
+        <p className="text-sm text-[color:var(--text-muted)] mt-1">
+          Welcome, {user?.name}
         </p>
       </div>
 
       {/* Scanner */}
-      <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
+      <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)] touch-none">
         <div
           ref={qrRef}
           id="qr-reader"
-          className="w-full h-[300px] bg-black rounded-xl overflow-hidden relative"
+          className="w-full aspect-square max-w-[350px] mx-auto bg-black rounded-xl overflow-hidden relative"
         />
 
         {!scanning && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-xl">
             <button
               onClick={() => window.location.reload()}
               className="flex flex-col items-center gap-2 text-white"
             >
-              <IconCamera size={48} />
-              <span>Tap to retry</span>
+              <IconCamera size={64} />
+              <span className="text-lg">Tap to retry</span>
             </button>
           </div>
         )}
 
         <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[color:var(--text-muted)]">
-          <IconCamera size={16} />
-          <span>Point camera at checkpoint QR code</span>
+          <IconCamera size={18} />
+          <span>Point camera at QR code</span>
         </div>
       </div>
 
       {/* Recent Scans */}
       <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-          <IconHistory size={20} />
+          <IconHistory size={22} />
           Recent Scans
         </h2>
 
@@ -224,26 +225,29 @@ export default function ScanQR() {
             {lastScans.map((scan) => (
               <div
                 key={scan.id}
-                className="flex items-center gap-3 p-3 rounded-xl bg-[color:var(--bg-muted)]"
+                className="flex items-center gap-3 p-4 rounded-xl bg-[color:var(--bg-muted)]"
               >
-                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <IconCheck size={20} className="text-green-600" />
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                  <IconCheck size={24} className="text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{scan.checkpointName}</p>
-                  <p className="text-xs text-[color:var(--text-muted)] flex items-center gap-1">
-                    <IconClock size={12} />
+                  <p className="font-semibold text-lg truncate">{scan.checkpointName}</p>
+                  <p className="text-sm text-[color:var(--text-muted)] flex items-center gap-1">
+                    <IconClock size={14} />
                     {formatTime(scan.scannedAt)}
                   </p>
                 </div>
-                <IconMapPin size={16} className="text-[color:var(--text-muted)]" />
+                <IconMapPin size={20} className="text-[color:var(--text-muted)] shrink-0" />
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-center text-[color:var(--text-muted)] py-4">
-            No scans yet. Start scanning checkpoints!
-          </p>
+          <div className="text-center py-8">
+            <IconQrcode size={48} className="mx-auto text-[color:var(--text-muted)] mb-3" />
+            <p className="text-[color:var(--text-muted)]">
+              No scans yet. Start scanning!
+            </p>
+          </div>
         )}
       </div>
     </div>
