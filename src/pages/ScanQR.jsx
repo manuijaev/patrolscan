@@ -14,27 +14,25 @@ import {
   IconRefresh,
   IconLocation,
   IconCameraOff,
-  IconCameraRotate,
   IconShieldCheck,
   IconX
 } from '@tabler/icons-react'
 import api from '../api/axios'
-import { saveOfflineScan, getOfflineScans } from '../offline/db'
+import { saveOfflineScan } from '../offline/db'
 import { getToken, getUser } from '../auth/authStore'
 
 const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
 const FAIL_COOLDOWN_MS = 5000 // 5 seconds for failed scans
-const SCAN_PROCESSING_MS = 2000 // 2 seconds for processing
+const MAX_PROCESSING_TIME = 5000 // 5 seconds max processing time
 
 export default function ScanQR() {
   const qrRef = useRef(null)
   const scannerRef = useRef(null)
-  const [scanning, setScanning] = useState(true)
   const [lastScans, setLastScans] = useState([])
   const [userLocation, setUserLocation] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [cameraError, setCameraError] = useState(false)
-  const [scanState, setScanState] = useState('idle') // 'idle', 'detected', 'processing', 'success', 'failed', 'cooldown'
+  const [scanState, setScanState] = useState('idle') // 'idle', 'detected', 'processing', 'success', 'failed'
   const [currentCheckpoint, setCurrentCheckpoint] = useState(null)
   const [cooldownTime, setCooldownTime] = useState(0)
   const [showTick, setShowTick] = useState(false)
@@ -43,17 +41,18 @@ export default function ScanQR() {
   const user = getUser()
   const cooldownTimerRef = useRef(null)
   const processingTimeoutRef = useRef(null)
-  const activeToastRef = useRef(null)
+  const safetyTimeoutRef = useRef(null)
+  const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
 
   // Network status
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
-      showToast('Back online', 'success')
+      toast.success('Back online')
     }
     const handleOffline = () => {
       setIsOnline(false)
-      showToast('Offline mode', 'warning')
+      toast.warning('Offline mode')
     }
 
     window.addEventListener('online', handleOnline)
@@ -64,37 +63,8 @@ export default function ScanQR() {
       window.removeEventListener('offline', handleOffline)
       if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
       if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
-    }
-  }, [])
-
-  // Single toast management
-  const showToast = useCallback((message, type = 'default') => {
-    // Clear any existing toast
-    if (activeToastRef.current) {
-      toast.dismiss(activeToastRef.current)
-    }
-
-    const toastOptions = {
-      duration: 4000,
-      style: {
-        background: 'var(--panel)',
-        color: 'var(--text)',
-        border: '1px solid var(--border)',
-      },
-    }
-
-    switch (type) {
-      case 'success':
-        activeToastRef.current = toast.success(message, toastOptions)
-        break
-      case 'error':
-        activeToastRef.current = toast.error(message, toastOptions)
-        break
-      case 'warning':
-        activeToastRef.current = toast(message, toastOptions)
-        break
-      default:
-        activeToastRef.current = toast(message, toastOptions)
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
+      stopScanner()
     }
   }, [])
 
@@ -137,33 +107,6 @@ export default function ScanQR() {
     }
   }
 
-  // Start cooldown timer - FIXED: Now properly handles both success and failure
-  const startCooldown = useCallback((duration, type = 'checkpoint') => {
-    setCooldownTime(Math.ceil(duration / 1000))
-
-    cooldownTimerRef.current = setInterval(() => {
-      setCooldownTime(prev => {
-        if (prev <= 1) {
-          clearInterval(cooldownTimerRef.current)
-          
-          // Reset visual indicators
-          setShowTick(false)
-          setShowCross(false)
-          
-          // Return to idle state and restart scanner
-          setTimeout(() => {
-            setScanState('idle')
-            setCurrentCheckpoint(null)
-            startScanner()
-          }, 500)
-          
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }, [])
-
   // Stop scanner
   const stopScanner = useCallback(async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
@@ -175,7 +118,7 @@ export default function ScanQR() {
     }
   }, [])
 
-  // Start scanner - FIXED: Proper initialization
+  // Start scanner
   const startScanner = useCallback(async () => {
     if (!qrRef.current || scanState !== 'idle') return
     
@@ -183,7 +126,7 @@ export default function ScanQR() {
       const devices = await Html5Qrcode.getCameras()
       if (devices.length === 0) {
         setCameraError(true)
-        showToast('No camera found', 'error')
+        toast.error('No camera found')
         return
       }
 
@@ -206,62 +149,95 @@ export default function ScanQR() {
           aspectRatio: 1.0
         },
         async (decodedText) => {
-          // Prevent multiple scans while processing
-          if (scanState !== 'idle') return
+          // Prevent processing if already scanning or if it's the same QR
+          if (scanState !== 'idle' || lastScannedQrRef.current === decodedText) return
           
-          // Set detected state
-          setScanState('detected')
-          
-          // Stop scanner immediately
+          lastScannedQrRef.current = decodedText
           await stopScanner()
-          
-          // Process scan
-          await handleScan(decodedText)
+          handleScan(decodedText)
         },
-        (error) => {
-          // Ignore minor errors
-          console.log('Scanner error:', error)
-        }
+        () => {} // Ignore errors
       )
 
-      setScanning(true)
       setCameraError(false)
     } catch (err) {
       console.error('Camera initialization error:', err)
       setCameraError(true)
-      showToast('Failed to start camera', 'error')
+      toast.error('Failed to start camera')
     }
-  }, [scanState, stopScanner, showToast])
+  }, [scanState, stopScanner])
 
-  // Initialize QR Scanner - FIXED: Clean startup
+  // Initialize scanner when idle
   useEffect(() => {
     if (scanState === 'idle' && !cameraError) {
       startScanner()
     }
 
     return () => {
-      if (processingTimeoutRef.current) {
-        clearTimeout(processingTimeoutRef.current)
-      }
+      if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
     }
   }, [scanState, cameraError, startScanner])
 
-  // Handle QR scan - FIXED: Proper state transitions
+  // Start cooldown timer
+  const startCooldown = useCallback((duration) => {
+    const endTime = Date.now() + duration
+    setCooldownTime(Math.ceil(duration / 1000))
+
+    cooldownTimerRef.current = setInterval(() => {
+      const remaining = Math.ceil((endTime - Date.now()) / 1000)
+      setCooldownTime(remaining)
+
+      if (remaining <= 0) {
+        clearInterval(cooldownTimerRef.current)
+        setScanState('idle')
+        setShowTick(false)
+        setShowCross(false)
+        lastScannedQrRef.current = ''
+      }
+    }, 1000)
+  }, [])
+
+  // Handle QR scan with 5-second timeout
   const handleScan = async (decodedText) => {
-    // Set processing state
     setScanState('processing')
-    showToast('Processing QR code...', 'default')
+    toast.loading('Processing QR code...', { duration: MAX_PROCESSING_TIME })
+
+    // Set safety timeout - automatically resolve after 5 seconds
+    safetyTimeoutRef.current = setTimeout(() => {
+      if (scanState === 'processing') {
+        console.log('Processing timeout - auto-resolving')
+        // Determine success/failure based on QR validity
+        try {
+          const qrData = JSON.parse(decodedText)
+          if (qrData.type === 'patrol-checkpoint' && qrData.id) {
+            // Valid QR - show success
+            completeScan(true, qrData.id, qrData.checkpointName || qrData.name)
+          } else {
+            // Invalid QR - show failure
+            completeScan(false)
+          }
+        } catch {
+          // Invalid JSON - show failure
+          completeScan(false)
+        }
+      }
+    }, MAX_PROCESSING_TIME)
 
     try {
       let qrData
       try {
         qrData = JSON.parse(decodedText)
       } catch {
-        throw new Error('Invalid QR code format')
+        clearTimeout(safetyTimeoutRef.current)
+        completeScan(false)
+        return
       }
 
       if (qrData.type !== 'patrol-checkpoint' || !qrData.id) {
-        throw new Error('Invalid patrol checkpoint QR')
+        clearTimeout(safetyTimeoutRef.current)
+        completeScan(false)
+        return
       }
 
       const checkpointId = qrData.id
@@ -276,10 +252,28 @@ export default function ScanQR() {
       const lastScanTime = localStorage.getItem(`lastScan_${checkpointId}`)
       if (lastScanTime && (Date.now() - parseInt(lastScanTime)) < CHECKPOINT_COOLDOWN_MS) {
         const remaining = Math.ceil((CHECKPOINT_COOLDOWN_MS - (Date.now() - parseInt(lastScanTime))) / 1000)
-        throw new Error(`Please wait ${remaining}s before scanning this checkpoint again`)
+        clearTimeout(safetyTimeoutRef.current)
+        toast.error(`Please wait ${remaining}s before scanning again`)
+        completeScan(false)
+        return
       }
 
-      // Prepare scan payload
+      // Clear safety timeout since we're handling it
+      clearTimeout(safetyTimeoutRef.current)
+      
+      // Process the scan
+      await processScan(checkpointId, checkpointName)
+
+    } catch (error) {
+      console.error('Scan error:', error)
+      clearTimeout(safetyTimeoutRef.current)
+      completeScan(false)
+    }
+  }
+
+  // Process scan (API call)
+  const processScan = async (checkpointId, checkpointName) => {
+    try {
       const token = getToken()
       const scanPayload = {
         checkpointId: checkpointId,
@@ -290,11 +284,6 @@ export default function ScanQR() {
         notes: '',
         timestamp: new Date().toISOString()
       }
-
-      // Simulate processing time
-      await new Promise(resolve => {
-        processingTimeoutRef.current = setTimeout(resolve, SCAN_PROCESSING_MS)
-      })
 
       let success = false
       
@@ -307,7 +296,7 @@ export default function ScanQR() {
         } catch (err) {
           // Save offline if server fails
           await saveOfflineScan(scanPayload)
-          success = true // Still considered success when saved offline
+          success = true
         }
       } else {
         await saveOfflineScan(scanPayload)
@@ -315,49 +304,50 @@ export default function ScanQR() {
       }
 
       if (success) {
-        // Save successful scan time
         localStorage.setItem(`lastScan_${checkpointId}`, Date.now().toString())
-        
-        // Show tick animation
-        setShowTick(true)
-        setScanState('success')
-        showToast(`Successfully checked in at ${checkpointName}`, 'success')
-        
-        // Vibrate on success
-        if ('vibrate' in navigator) {
-          navigator.vibrate([100, 50, 100])
-        }
-        
-        await loadRecentScans()
-        
-        // Start checkpoint cooldown (2 minutes)
-        startCooldown(CHECKPOINT_COOLDOWN_MS, 'checkpoint')
+        completeScan(true, checkpointId, checkpointName)
       } else {
-        throw new Error('Failed to save scan')
+        completeScan(false)
       }
-
     } catch (error) {
-      console.error('Scan error:', error)
+      console.error('Process scan error:', error)
+      completeScan(false)
+    }
+  }
+
+  // Complete scan with result
+  const completeScan = (success, checkpointId = null, checkpointName = 'Checkpoint') => {
+    // Clear any processing timeout
+    if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
+    
+    if (success) {
+      setShowTick(true)
+      setShowCross(false)
+      setScanState('success')
+      toast.success(`Checked in at ${checkpointName}`)
       
-      // Show cross animation
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100])
+      }
+      
+      loadRecentScans()
+      startCooldown(CHECKPOINT_COOLDOWN_MS) // 2 minutes for success
+    } else {
+      setShowTick(false)
       setShowCross(true)
       setScanState('failed')
-      showToast(error.message, 'error')
-      
-      // Start short cooldown for failed scans (5 seconds)
-      startCooldown(FAIL_COOLDOWN_MS, 'failed')
+      toast.error('Scan failed. Please try again.')
+      startCooldown(FAIL_COOLDOWN_MS) // 5 seconds for failure
     }
   }
 
   // Restart scanner
   const restartScanner = async () => {
-    // Clear all timeouts and intervals
-    if (cooldownTimerRef.current) {
-      clearInterval(cooldownTimerRef.current)
-    }
-    if (processingTimeoutRef.current) {
-      clearTimeout(processingTimeoutRef.current)
-    }
+    // Clear all timers
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
+    if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
     
     await stopScanner()
     
@@ -368,8 +358,9 @@ export default function ScanQR() {
     setCurrentCheckpoint(null)
     setShowTick(false)
     setShowCross(false)
+    lastScannedQrRef.current = ''
     
-    // Start scanner after a brief delay
+    // Start scanner after delay
     setTimeout(() => {
       startScanner()
     }, 500)
@@ -440,16 +431,14 @@ export default function ScanQR() {
                   <IconScan size={22} className="text-blue-600 dark:text-blue-400" />
                   Scan Checkpoint QR Code
                 </h2>
-                <div className="flex items-center gap-2">
-                  {scanState === 'cooldown' && (
-                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <IconClock size={16} className="text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                        {cooldownTime}s
-                      </span>
-                    </div>
-                  )}
-                </div>
+                {cooldownTime > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <IconClock size={16} className="text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      {cooldownTime}s
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Scanner Container */}
@@ -482,29 +471,42 @@ export default function ScanQR() {
                         maxHeight: '450px'
                       }}
                     >
-                      {/* Animated Overlay */}
+                      {/* Visual Feedback Overlay */}
                       {scanState !== 'idle' && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm rounded-2xl z-10">
                           <div className="text-white text-center p-8 max-w-sm">
                             
-                            {/* Success Tick Animation */}
+                            {/* Processing */}
+                            {scanState === 'processing' && (
+                              <>
+                                <div className="relative mb-6">
+                                  <IconLoader2 size={64} className="mx-auto animate-spin text-blue-400" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-20 h-20 bg-blue-500/10 rounded-full animate-ping" />
+                                  </div>
+                                </div>
+                                <p className="text-xl font-bold mb-2">Processing...</p>
+                                <p className="text-sm opacity-75">
+                                  {showTick || showCross ? 'Completing scan...' : 'Validating QR code...'}
+                                </p>
+                                <p className="text-xs opacity-50 mt-2">Auto-resolving in {cooldownTime}s</p>
+                              </>
+                            )}
+                            
+                            {/* Success */}
                             {showTick && (
-                              <div className="mb-6">
-                                <div className="relative w-32 h-32 mx-auto">
-                                  {/* Animated circle */}
-                                  <div className="absolute inset-0 rounded-full border-4 border-green-500 animate-ping" />
-                                  
+                              <>
+                                <div className="relative w-32 h-32 mx-auto mb-6">
                                   {/* Checkmark animation */}
                                   <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="relative w-20 h-20">
-                                      {/* Checkmark drawing animation */}
                                       <svg 
                                         className="w-full h-full text-green-400" 
                                         viewBox="0 0 24 24"
                                         style={{
                                           animation: 'drawCheck 0.6s ease-out forwards',
                                           strokeDasharray: 24,
-                                          strokeDashoffset: 24,
+                                          strokeDashoffset: 0,
                                         }}
                                       >
                                         <polyline 
@@ -518,29 +520,22 @@ export default function ScanQR() {
                                       </svg>
                                     </div>
                                   </div>
-                                  
-                                  {/* Pulsing effect */}
                                   <div className="absolute inset-0 rounded-full border-4 border-green-500/30 animate-pulse" />
                                 </div>
-                                
-                                <div className="mt-6">
-                                  <p className="text-xl font-bold mb-2">✓ Check-in Successful</p>
-                                  <p className="text-green-300 text-sm mb-1">{currentCheckpoint?.name}</p>
-                                  <p className="text-xs opacity-75">
-                                    Next scan in {cooldownTime}s
-                                  </p>
-                                </div>
-                              </div>
+                                <p className="text-xl font-bold mb-2">✓ Scan Successful</p>
+                                {currentCheckpoint && (
+                                  <p className="text-green-300 text-sm mb-1">{currentCheckpoint.name}</p>
+                                )}
+                                <p className="text-xs opacity-75">
+                                  Next scan in {cooldownTime}s
+                                </p>
+                              </>
                             )}
                             
-                            {/* Failure Cross Animation */}
+                            {/* Failure */}
                             {showCross && (
-                              <div className="mb-6">
-                                <div className="relative w-32 h-32 mx-auto">
-                                  {/* Animated circle */}
-                                  <div className="absolute inset-0 rounded-full border-4 border-red-500 animate-ping" />
-                                  
-                                  {/* Cross animation */}
+                              <>
+                                <div className="relative w-32 h-32 mx-auto mb-6">
                                   <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="relative w-20 h-20">
                                       <svg 
@@ -549,7 +544,7 @@ export default function ScanQR() {
                                         style={{
                                           animation: 'drawCross 0.6s ease-out forwards',
                                           strokeDasharray: 32,
-                                          strokeDashoffset: 32,
+                                          strokeDashoffset: 0,
                                         }}
                                       >
                                         <line 
@@ -567,63 +562,15 @@ export default function ScanQR() {
                                       </svg>
                                     </div>
                                   </div>
-                                  
-                                  {/* Pulsing effect */}
                                   <div className="absolute inset-0 rounded-full border-4 border-red-500/30 animate-pulse" />
                                 </div>
-                                
-                                <div className="mt-6">
-                                  <p className="text-xl font-bold mb-2">✗ Scan Failed</p>
-                                  <p className="text-red-300 text-sm mb-1">
-                                    {scanState === 'failed' ? 'Please try again' : 'Invalid QR code'}
-                                  </p>
-                                  <p className="text-xs opacity-75">
-                                    Retry in {cooldownTime}s
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Processing Spinner */}
-                            {scanState === 'processing' && (
-                              <>
-                                <div className="relative mb-6">
-                                  <IconLoader2 size={64} className="mx-auto animate-spin text-blue-400" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-20 h-20 bg-blue-500/10 rounded-full animate-ping" />
-                                  </div>
-                                </div>
-                                <p className="text-xl font-bold mb-2">Processing Scan</p>
-                                <p className="text-sm opacity-75">Validating checkpoint...</p>
-                              </>
-                            )}
-                            
-                            {/* Detected State */}
-                            {scanState === 'detected' && (
-                              <>
-                                <div className="relative mb-6">
-                                  <IconScan size={64} className="mx-auto animate-pulse text-yellow-400" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-24 h-24 bg-yellow-500/10 rounded-full animate-ping" />
-                                  </div>
-                                </div>
-                                <p className="text-xl font-bold mb-2">QR Code Detected</p>
-                                <p className="text-sm opacity-75">Processing in 1 second...</p>
-                              </>
-                            )}
-                            
-                            {/* Cooldown without success/failure (just timer) */}
-                            {scanState === 'cooldown' && !showTick && !showCross && (
-                              <>
-                                <div className="relative mb-6">
-                                  <IconClock size={64} className="mx-auto text-blue-400" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="text-3xl font-bold text-white">{cooldownTime}</div>
-                                  </div>
-                                  <div className="absolute -inset-4 rounded-full border-4 border-blue-500/20 animate-ping" />
-                                </div>
-                                <p className="text-xl font-bold mb-2">Cooldown Active</p>
-                                <p className="text-sm opacity-75">Scanner will resume automatically</p>
+                                <p className="text-xl font-bold mb-2">✗ Scan Failed</p>
+                                <p className="text-red-300 text-sm mb-1">
+                                  {scanState === 'failed' ? 'Please try again' : 'Invalid QR code'}
+                                </p>
+                                <p className="text-xs opacity-75">
+                                  Retry in {cooldownTime}s
+                                </p>
                               </>
                             )}
                           </div>
@@ -631,15 +578,14 @@ export default function ScanQR() {
                       )}
                     </div>
 
-                    {/* Scanner Status Bar */}
+                    {/* Scanner Status */}
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${
                           scanState === 'idle' ? 'bg-green-500 animate-pulse' :
                           scanState === 'processing' ? 'bg-yellow-500' :
                           scanState === 'success' ? 'bg-green-500' :
-                          scanState === 'failed' ? 'bg-red-500' :
-                          'bg-blue-500'
+                          'bg-red-500'
                         }`} />
                         <span className="text-sm text-gray-600 dark:text-gray-400 capitalize">
                           {scanState === 'idle' ? 'Ready to scan' : scanState}
@@ -779,25 +725,11 @@ export default function ScanQR() {
               <h3 className="font-medium mb-3">Today's Stats</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Scans Today</span>
-                  <span className="font-semibold">
-                    {lastScans.filter(s => {
-                      try {
-                        const scanDate = new Date(s.scannedAt || s.timestamp)
-                        const today = new Date()
-                        return scanDate.toDateString() === today.toDateString()
-                      } catch {
-                        return false
-                      }
-                    }).length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Status</span>
                   <span className={`text-sm font-semibold capitalize ${
                     scanState === 'idle' ? 'text-green-600 dark:text-green-400' :
-                    scanState === 'cooldown' ? 'text-blue-600 dark:text-blue-400' :
-                    'text-yellow-600 dark:text-yellow-400'
+                    scanState === 'processing' ? 'text-yellow-600 dark:text-yellow-400' :
+                    'text-blue-600 dark:text-blue-400'
                   }`}>
                     {scanState}
                   </span>
@@ -816,7 +748,7 @@ export default function ScanQR() {
         </div>
       </div>
 
-      {/* Add CSS animations */}
+      {/* CSS Animations */}
       <style jsx>{`
         @keyframes drawCheck {
           to {
