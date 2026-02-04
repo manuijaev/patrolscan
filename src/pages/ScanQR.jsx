@@ -22,8 +22,8 @@ import { saveOfflineScan } from '../offline/db'
 import { getToken, getUser } from '../auth/authStore'
 
 const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
-const FAIL_COOLDOWN_MS = 5000 // 5 seconds for failed scans
-const MAX_PROCESSING_TIME = 5000 // 5 seconds max processing time
+const FAIL_COOLDOWN_MS = 10000 // 10 seconds for failed scans
+const MAX_PROCESSING_TIME = 10000 // 10 seconds max processing time
 
 export default function ScanQR() {
   const qrRef = useRef(null)
@@ -82,10 +82,24 @@ export default function ScanQR() {
         const elapsed = Date.now() - parseInt(lastScanTime)
         const remaining = CHECKPOINT_COOLDOWN_MS - elapsed
         if (remaining > 0) {
-          setScanState('success') // Prevent scanner from starting during cooldown
+          setScanState('success')
           setShowTick(true)
-          setActiveCooldownCheckpoint(activeCheckpointId)
-          startCooldown(remaining, activeCheckpointId)
+          setCooldownTime(Math.ceil(remaining / 1000))
+          
+          // Start inline cooldown timer
+          const endTime = Date.now() + remaining
+          cooldownTimerRef.current = setInterval(() => {
+            const secsRemaining = Math.ceil((endTime - Date.now()) / 1000)
+            setCooldownTime(secsRemaining)
+            if (secsRemaining <= 0) {
+              clearInterval(cooldownTimerRef.current)
+              setScanState('idle')
+              setShowTick(false)
+              setActiveCooldownCheckpoint(null)
+              localStorage.removeItem('activeCooldownCheckpoint')
+              lastScannedQrRef.current = ''
+            }
+          }, 1000)
         } else {
           localStorage.removeItem('activeCooldownCheckpoint')
         }
