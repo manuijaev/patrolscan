@@ -1,12 +1,14 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IconLayoutDashboard,
   IconUsers,
   IconMapPin,
   IconQrcode,
   IconReportAnalytics,
-  IconShieldCheck
+  IconShieldCheck,
+  IconLogout
 } from '@tabler/icons-react'
+import { logout } from '../../auth/authStore'
 
 const menu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
@@ -17,6 +19,13 @@ const menu = [
 ]
 
 export default function Sidebar() {
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
+
   return (
     <aside className="w-64 xl:w-72 bg-[color:var(--panel)]/90 backdrop-blur-xl border-r border-[color:var(--border)] flex flex-col">
       {/* Logo */}
@@ -52,6 +61,17 @@ export default function Sidebar() {
       </nav>
 
       <div className="flex-1" />
+
+      {/* Logout Button */}
+      <div className="p-4 border-t border-[color:var(--border)]">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[color:var(--text-muted)] hover:bg-[color:var(--bg-muted)] hover:text-[color:var(--text)] transition"
+        >
+          <IconLogout size={20} />
+          <span className="font-medium">Logout</span>
+        </button>
+      </div>
 
       <div className="p-4 text-xs text-[color:var(--text-muted)]">
         © PatrolScan
