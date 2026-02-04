@@ -246,7 +246,6 @@ export default function ScanQR() {
   // Handle QR scan with 5-second timeout
   const handleScan = async (decodedText) => {
     setScanState('processing')
-    toast.loading('Processing QR code...', { duration: MAX_PROCESSING_TIME })
 
     // Set safety timeout - automatically resolve after 5 seconds
     safetyTimeoutRef.current = setTimeout(() => {
