@@ -4,11 +4,13 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import './index.css'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
+      <PWAInstallPrompt />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -21,5 +23,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         }}
       />
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 )

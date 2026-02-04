@@ -7,80 +7,124 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'patrolscanimg.png'],
+      includeAssets: ['favicon.svg', 'patrolscanimg.png', 'robots.txt'],
       manifest: {
         name: 'Patrol Scan',
-        short_name: 'Patrol',
+        short_name: 'PatrolScan',
         description: 'Patrol Management System',
-        theme_color: '#020617',
-        background_color: '#020617',
+        theme_color: '#2563eb',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        id: '/',
+        categories: ['business', 'productivity', 'security'],
+        shortcuts: [
+          {
+            name: 'Scan Checkpoint',
+            short_name: 'Scan',
+            description: 'Quickly scan a QR code',
+            url: '/scan',
+            icons: [{ src: '/patrolscanimg.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Dashboard',
+            short_name: 'Dashboard',
+            description: 'View patrol activity',
+            url: '/dashboard',
+            icons: [{ src: '/patrolscanimg.png', sizes: '192x192' }]
+          }
+        ],
         icons: [
           {
-            src: 'public/patrolscanimg.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable',
+            src: 'pwa-64x64.png',
+            sizes: '64x64',
+            type: 'image/png'
           },
           {
-            src: 'public/patrolscanimg.png',
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any'
           },
-        ],
+          {
+            src: 'maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          }
+        ]
       },
       workbox: {
-        // Don't cache navigation requests - prevents stale content
-        navigateFallback: '/index.html',
-        // Cache strategies
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            // API requests - network first, fall back to cache
-            urlPattern: /^https:\/\/.*\.api\..*/i,
+            urlPattern: ({ request }) => request.destination === 'document',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache',
+              cacheName: 'documents',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 7
+              }
+            }
+          },
+          {
+            urlPattern: ({ request }) => request.destination === 'style' ||
+                                        request.destination === 'script' ||
+                                        request.destination === 'worker',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'assets',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours
-              },
-              networkTimeoutSeconds: 10,
-            },
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              }
+            }
           },
           {
-            // Images - cache first
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+            urlPattern: ({ request }) => request.destination === 'image',
             handler: 'CacheFirst',
             options: {
-              cacheName: 'images-cache',
+              cacheName: 'images',
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-              },
-            },
-          },
-          {
-            // Fonts - cache first
-            urlPattern: /\.(?:woff|woff2|ttf|eot|otf)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'fonts-cache',
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-            },
-          },
-        ],
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              }
+            }
+          }
+        ]
       },
-    }),
+      devOptions: {
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html'
+      },
+      injectRegister: 'auto',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+    })
   ],
   server: {
     host: '0.0.0.0',
     port: 5173,
   },
+  base: './',
+  build: {
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom']
+        }
+      }
+    }
+  }
 })
