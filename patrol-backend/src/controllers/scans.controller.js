@@ -94,6 +94,18 @@ export const recordScan = async (req, res) => {
       return res.status(404).json({ error: 'Checkpoint not found' })
     }
     
+    // Check if guard is assigned to this checkpoint
+    const assignedCheckpoints = guard.assignedCheckpoints || []
+    const isAssigned = assignedCheckpoints.includes(checkpointId)
+    
+    if (!isAssigned) {
+      return res.status(403).json({ 
+        error: 'Not assigned',
+        message: 'You are not assigned to this checkpoint',
+        assigned: false
+      })
+    }
+    
     const newScan = await scans.create({
       guardId,
       checkpointId,
@@ -106,7 +118,8 @@ export const recordScan = async (req, res) => {
       ...newScan,
       guardName: guard.name,
       checkpointName: checkpoint.name,
-      message: 'Scan recorded successfully'
+      message: 'Scan recorded successfully',
+      assigned: true
     })
   } catch (error) {
     res.status(500).json({ error: 'Failed to record scan' })

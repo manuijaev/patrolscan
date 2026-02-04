@@ -329,43 +329,65 @@ export default function ScanQR() {
         timestamp: new Date().toISOString()
       }
 
-      let success = false
+      let isAssigned = false
+      let errorMessage = ''
       
       if (isOnline) {
         try {
-          await api.post('/scans/record', scanPayload, {
+          const res = await api.post('/scans/record', scanPayload, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          success = true
           
-          // Auto-unassign checkpoint from guard after successful scan
-          try {
-            await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            console.log('Checkpoint unassigned successfully')
-          } catch (unassignErr) {
-            console.error('Failed to unassign checkpoint:', unassignErr)
-            // Don't fail the scan if unassign fails
+          // Check if guard is assigned to this checkpoint
+          isAssigned = res.data.assigned === true
+          
+          if (isAssigned) {
+            // Auto-unassign checkpoint from guard after successful scan
+            try {
+              await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              console.log('Checkpoint unassigned successfully')
+            } catch (unassignErr) {
+              console.error('Failed to unassign checkpoint:', unassignErr)
+            }
           }
         } catch (err) {
-          // Save offline if server fails
-          await saveOfflineScan(scanPayload)
-          success = true
+          // Check if error is "not assigned"
+          if (err.response?.data?.assigned === false) {
+            isAssigned = false
+            errorMessage = 'Not assigned to this checkpoint'
+          } else {
+            // Save offline if server fails (for other errors)
+            await saveOfflineScan(scanPayload)
+            isAssigned = true
+          }
         }
       } else {
+        // Offline mode - assume assigned
         await saveOfflineScan(scanPayload)
-        success = true
+        isAssigned = true
       }
 
-      if (success) {
+      // Clear any safety timeout since we're handling it
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current)
+        safetyTimeoutRef.current = null
+      }
+
+      if (isAssigned) {
         localStorage.setItem(`lastScan_${checkpointId}`, Date.now().toString())
         completeScan(true, checkpointId, checkpointName)
       } else {
-        completeScan(false)
+        completeScan(false, null, errorMessage || 'Not Assigned')
       }
     } catch (error) {
       console.error('Process scan error:', error)
+      // Clear safety timeout on error
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current)
+        safetyTimeoutRef.current = null
+      }
       completeScan(false)
     }
   }
@@ -373,14 +395,24 @@ export default function ScanQR() {
   // Complete scan with result
   const completeScan = (success, checkpointId = null, checkpointName = 'Checkpoint') => {
     // Clear any processing timeout
-    if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
-    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current)
+      processingTimeoutRef.current = null
+    }
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current)
+      safetyTimeoutRef.current = null
+    }
     
     if (success) {
       setShowTick(true)
       setShowCross(false)
       setScanState('success')
-      toast.success(`Checked in at ${checkpointName}`)
+      if (checkpointName === 'Not Assigned') {
+        toast.error(checkpointName)
+      } else {
+        toast.success(`Checked in at ${checkpointName}`)
+      }
       
       if ('vibrate' in navigator) {
         navigator.vibrate([100, 50, 100])
@@ -393,7 +425,7 @@ export default function ScanQR() {
       setShowTick(false)
       setShowCross(true)
       setScanState('failed')
-      toast.error('Scan failed. Please try again.')
+      toast.error(checkpointName === 'Not Assigned' ? 'Not assigned to this checkpoint' : 'Scan failed. Please try again.')
       localStorage.setItem('scanResult', 'failed') // Save scan result for persistence
       startCooldown(FAIL_COOLDOWN_MS) // 10 seconds for failure
     }
