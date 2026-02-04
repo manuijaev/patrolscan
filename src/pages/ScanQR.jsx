@@ -76,14 +76,16 @@ export default function ScanQR() {
     
     // Restore cooldown state from localStorage
     const activeCheckpointId = localStorage.getItem('activeCooldownCheckpoint')
+    const scanResult = localStorage.getItem('scanResult') // 'success' or 'failed'
     if (activeCheckpointId) {
       const lastScanTime = localStorage.getItem(`lastScan_${activeCheckpointId}`)
       if (lastScanTime) {
         const elapsed = Date.now() - parseInt(lastScanTime)
         const remaining = CHECKPOINT_COOLDOWN_MS - elapsed
         if (remaining > 0) {
-          setScanState('success')
-          setShowTick(true)
+          setScanState(scanResult || 'success')
+          setShowTick(scanResult !== 'failed')
+          setShowCross(scanResult === 'failed')
           setCooldownTime(Math.ceil(remaining / 1000))
           
           // Start inline cooldown timer
@@ -95,13 +97,16 @@ export default function ScanQR() {
               clearInterval(cooldownTimerRef.current)
               setScanState('idle')
               setShowTick(false)
+              setShowCross(false)
               setActiveCooldownCheckpoint(null)
               localStorage.removeItem('activeCooldownCheckpoint')
+              localStorage.removeItem('scanResult')
               lastScannedQrRef.current = ''
             }
           }, 1000)
         } else {
           localStorage.removeItem('activeCooldownCheckpoint')
+          localStorage.removeItem('scanResult')
         }
       }
     }
@@ -372,13 +377,15 @@ export default function ScanQR() {
       }
       
       loadRecentScans()
+      localStorage.setItem('scanResult', 'success') // Save scan result for persistence
       startCooldown(CHECKPOINT_COOLDOWN_MS, checkpointId) // 2 minutes for success
     } else {
       setShowTick(false)
       setShowCross(true)
       setScanState('failed')
       toast.error('Scan failed. Please try again.')
-      startCooldown(FAIL_COOLDOWN_MS) // 5 seconds for failure
+      localStorage.setItem('scanResult', 'failed') // Save scan result for persistence
+      startCooldown(FAIL_COOLDOWN_MS) // 10 seconds for failure
     }
   }
 
@@ -398,7 +405,12 @@ export default function ScanQR() {
     setCurrentCheckpoint(null)
     setShowTick(false)
     setShowCross(false)
+    setActiveCooldownCheckpoint(null)
     lastScannedQrRef.current = ''
+    
+    // Clear localStorage
+    localStorage.removeItem('activeCooldownCheckpoint')
+    localStorage.removeItem('scanResult')
     
     // Start scanner after delay
     setTimeout(() => {
