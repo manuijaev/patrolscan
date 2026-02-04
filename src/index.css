@@ -57,7 +57,7 @@ body,
   color-scheme: dark;
   --bg: var(--color-bg-dark);
   --bg-muted: var(--color-bg-muted-dark);
-  --panel: var(--color-panel-dark);
+  --panel: var(--color-bg-dark);
   --panel-strong: var(--color-panel-strong-dark);
   --border: var(--color-border-dark);
   --text: var(--color-text-dark);
@@ -66,6 +66,13 @@ body,
   --accent-strong: var(--color-accent-strong-dark);
   --accent-soft: var(--color-accent-soft-dark);
   --shadow: var(--shadow-dark);
+}
+
+/* Dashboard dark mode card override - targets any element with dark:bg-gray-900 */
+.dark [class*="dark:bg-gray-900"],
+.dark [class*="dark:bg-gray-800"] {
+  background-color: #0b1220 !important;
+  border-color: #1f2a3a !important;
 }
 
 body {

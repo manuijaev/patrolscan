@@ -1,4 +1,4 @@
-import { getGuards, addGuard, updateGuard, deleteGuard, assignCheckpoints, getGuardsWithCheckpoints } from '../data/users.js'
+import { getGuards, addGuard, updateGuard, deleteGuard, assignCheckpoints, getGuardsWithCheckpoints, unassignCheckpoint } from '../data/users.js'
 
 export function listGuards(req, res) {
   const safeGuards = getGuardsWithCheckpoints().map(g => ({
@@ -79,4 +79,16 @@ export function assignCheckpointsController(req, res) {
   }
 
   return res.json({ message: 'Checkpoints assigned successfully' })
+}
+
+export async function unassignCheckpointController(req, res) {
+  const { id, checkpointId } = req.params
+
+  const success = await unassignCheckpoint(Number(id), Number(checkpointId))
+
+  if (!success) {
+    return res.status(404).json({ message: 'Guard or checkpoint not found' })
+  }
+
+  return res.json({ message: 'Checkpoint unassigned successfully' })
 }

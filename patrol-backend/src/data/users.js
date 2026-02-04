@@ -116,3 +116,17 @@ export function getGuardsWithCheckpoints() {
     assignedCheckpoints: g.assignedCheckpoints || []
   }))
 }
+
+// Unassign a single checkpoint from a guard
+export async function unassignCheckpoint(guardId, checkpointId) {
+  const index = guards.findIndex(g => g.id === guardId)
+  if (index === -1) return false
+  
+  if (!guards[index].assignedCheckpoints) {
+    return false
+  }
+  
+  guards[index].assignedCheckpoints = guards[index].assignedCheckpoints.filter(id => id !== checkpointId)
+  await saveGuards(guards)
+  return true
+}

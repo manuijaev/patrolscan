@@ -337,6 +337,17 @@ export default function ScanQR() {
             headers: { Authorization: `Bearer ${token}` },
           })
           success = true
+          
+          // Auto-unassign checkpoint from guard after successful scan
+          try {
+            await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            console.log('Checkpoint unassigned successfully')
+          } catch (unassignErr) {
+            console.error('Failed to unassign checkpoint:', unassignErr)
+            // Don't fail the scan if unassign fails
+          }
         } catch (err) {
           // Save offline if server fails
           await saveOfflineScan(scanPayload)

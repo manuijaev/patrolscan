@@ -15,5 +15,6 @@ router.post('/', requireAuth, requireRole('admin'), createGuard)
 router.put('/:id', requireAuth, requireRole('admin'), updateGuardController)
 router.delete('/:id', requireAuth, requireRole('admin'), removeGuard)
 router.put('/:id/assign-checkpoints', requireAuth, requireRole('admin'), assignCheckpointsController)
+router.delete('/:id/unassign-checkpoint/:checkpointId', requireAuth, requireRole('admin'), unassignCheckpointController)
 
 export default router

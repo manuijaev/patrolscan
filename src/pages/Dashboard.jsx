@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   IconActivity,
   IconAlertCircle,
@@ -29,6 +30,7 @@ import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [performanceData, setPerformanceData] = useState({
     completionRate: 92,
     avgResponseTime: '4m 23s',
@@ -317,7 +319,10 @@ export default function Dashboard() {
               <IconTimeline size={24} className="text-blue-600 dark:text-blue-400" />
               <h3 className="text-lg font-semibold">Guard Patrol Timeline</h3>
             </div>
-            <button className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1">
+            <button 
+              onClick={() => navigate('/patrols')}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+            >
               View All <IconChevronRight size={16} />
             </button>
           </div>
@@ -447,14 +452,17 @@ export default function Dashboard() {
                 <IconCalendarEvent size={24} className="text-blue-600 dark:text-blue-400" />
                 <h3 className="text-lg font-semibold">Upcoming Patrols</h3>
               </div>
-              <button className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+              <button 
+                onClick={() => navigate('/patrols')}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+              >
                 View All
               </button>
             </div>
 
             <div className="space-y-4">
               {upcomingShifts.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">
+                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                   <IconMapPin size={32} className="mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No patrols assigned</p>
                   <p className="text-xs">Assign checkpoints to guards from the Guards page</p>
@@ -468,10 +476,10 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
-                          <IconUser size={20} className="text-blue-500" />
+                          <IconUser size={20} className="text-blue-500 dark:text-blue-400" />
                         </div>
                         <div>
-                          <p className="font-semibold">{patrol.guardName}</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">{patrol.guardName}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {patrol.completedToday}/{patrol.totalAssigned} completed
                           </p>
@@ -505,7 +513,7 @@ export default function Dashboard() {
                         </div>
                       ))}
                       {patrol.checkpoints.length > 5 && (
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
                           +{patrol.checkpoints.length - 5} more
                         </p>
                       )}
@@ -556,7 +564,7 @@ export default function Dashboard() {
 
         {/* Today's Alerts */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
             <IconBell size={20} className="text-yellow-500" />
             Alerts
           </h3>
@@ -571,7 +579,7 @@ export default function Dashboard() {
                   className="rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-3 text-sm"
                 >
                   <div className="flex items-start justify-between">
-                    <p>Checkpoint inactive: {checkpoint.name}</p>
+                    <p className="text-gray-900 dark:text-gray-200">Checkpoint inactive: {checkpoint.name}</p>
                     <span className="text-xs text-gray-500 dark:text-gray-400">24h</span>
                   </div>
                 </div>
@@ -586,14 +594,14 @@ export default function Dashboard() {
                   className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm"
                 >
                   <div className="flex items-start justify-between">
-                    <p>No activity: {guard.name}</p>
+                    <p className="text-gray-900 dark:text-gray-200">No activity: {guard.name}</p>
                     <span className="text-xs text-gray-500 dark:text-gray-400">Today</span>
                   </div>
                 </div>
               ))}
             {upcomingShifts.filter(cp => cp.status === 'inactive').length === 0 && 
              riskScoring.filter(g => g.scansToday === 0).length === 0 && (
-              <div className="text-center py-4 text-gray-500">
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                 <IconBell size={32} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No alerts</p>
               </div>
