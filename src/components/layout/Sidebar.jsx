@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
   IconLayoutDashboard,
   IconUsers,
@@ -19,11 +19,10 @@ const menu = [
 ]
 
 export default function Sidebar() {
-  const navigate = useNavigate()
 
   function handleLogout() {
     logout()
-    navigate('/login')
+    window.location.href = '/admin-login'
   }
 
   return (
