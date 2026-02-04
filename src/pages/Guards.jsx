@@ -5,17 +5,21 @@ import {
   IconTrash,
   IconX,
   IconCheck,
-  IconUser
+  IconUser,
+  IconMapPin
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
 export default function Guards() {
   const [guards, setGuards] = useState([])
+  const [checkpoints, setCheckpoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editPin, setEditPin] = useState('')
+  const [assigningId, setAssigningId] = useState(null)
+  const [selectedCheckpoints, setSelectedCheckpoints] = useState([])
   
   // Create form state
   const [name, setName] = useState('')
@@ -32,8 +36,18 @@ export default function Guards() {
     }
   }
 
+  async function loadCheckpoints() {
+    try {
+      const res = await api.get('/checkpoints')
+      setCheckpoints(res.data)
+    } catch (err) {
+      console.error('Failed to load checkpoints', err)
+    }
+  }
+
   useEffect(() => {
     loadGuards()
+    loadCheckpoints()
   }, [])
 
   async function handleCreate(e) {
@@ -103,6 +117,42 @@ export default function Guards() {
       console.error('Failed to delete guard', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  function startAssign(guard) {
+    setAssigningId(guard.id)
+    setSelectedCheckpoints(guard.assignedCheckpoints || [])
+  }
+
+  function cancelAssign() {
+    setAssigningId(null)
+    setSelectedCheckpoints([])
+  }
+
+  async function saveAssignment(guardId) {
+    setLoading(true)
+    try {
+      await api.put(
+        `/guards/${guardId}/assign-checkpoints`,
+        { checkpointIds: selectedCheckpoints },
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      )
+      setAssigningId(null)
+      setSelectedCheckpoints([])
+      await loadGuards()
+    } catch (err) {
+      console.error('Failed to assign checkpoints', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggleCheckpoint(cpId) {
+    if (selectedCheckpoints.includes(cpId)) {
+      setSelectedCheckpoints(selectedCheckpoints.filter(id => id !== cpId))
+    } else {
+      setSelectedCheckpoints([...selectedCheckpoints, cpId])
     }
   }
 
@@ -232,6 +282,13 @@ export default function Guards() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => startAssign(guard)}
+                        className="p-2 rounded-lg hover:bg-[color:var(--panel)] transition text-[color:var(--text-muted)] hover:text-blue-600"
+                        title="Assign checkpoints"
+                      >
+                        <IconMapPin size={18} />
+                      </button>
+                      <button
                         onClick={() => startEdit(guard)}
                         className="p-2 rounded-lg hover:bg-[color:var(--panel)] transition text-[color:var(--text-muted)] hover:text-[color:var(--accent)]"
                         title="Edit guard"
@@ -244,6 +301,69 @@ export default function Guards() {
                         title="Delete guard"
                       >
                         <IconTrash size={18} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Assignment Mode */}
+                {assigningId === guard.id && (
+                  <div className="p-4 border-t border-[color:var(--border)]">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium flex items-center gap-2">
+                        <IconMapPin size={16} />
+                        Assign Checkpoints
+                      </h4>
+                      <button
+                        onClick={cancelAssign}
+                        className="p-1 rounded-lg hover:bg-[color:var(--border)]"
+                      >
+                        <IconX size={16} />
+                      </button>
+                    </div>
+                    
+                    {checkpoints.length === 0 ? (
+                      <p className="text-sm text-[color:var(--text-muted)] text-center py-4">
+                        No checkpoints available. Create checkpoints first.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {checkpoints.map(cp => (
+                          <label
+                            key={cp.id}
+                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition ${
+                              selectedCheckpoints.includes(cp.id)
+                                ? 'bg-blue-100 dark:bg-blue-900/30'
+                                : 'hover:bg-[color:var(--panel)]'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedCheckpoints.includes(cp.id)}
+                              onChange={() => toggleCheckpoint(cp.id)}
+                              className="w-4 h-4 rounded border-[color:var(--border)] text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">{cp.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => saveAssignment(guard.id)}
+                        disabled={loading}
+                        className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        <IconCheck size={16} />
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelAssign}
+                        className="flex-1 py-2 rounded-lg bg-[color:var(--border)] hover:bg-gray-400 transition font-medium flex items-center justify-center gap-1"
+                      >
+                        <IconX size={16} />
+                        Cancel
                       </button>
                     </div>
                   </div>

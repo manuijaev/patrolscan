@@ -3,7 +3,10 @@
     "id": 2,
     "name": "ZACK",
     "pin": "$2b$10$TkibfSNJVQ1QDVVwN8eq4Oa/slodX0Mi0S.txWPh2eqHj1..lo6g2",
-    "role": "guard"
+    "role": "guard",
+    "assignedCheckpoints": [
+      "cp-1770147996002-9c1kkardv"
+    ]
   },
   {
     "id": 3,

@@ -88,3 +88,31 @@ export async function deleteGuard(id) {
   
   return true
 }
+
+// Assign checkpoints to a guard
+export async function assignCheckpoints(guardId, checkpointIds) {
+  const index = guards.findIndex(g => g.id === guardId)
+  if (index === -1) return false
+  
+  guards[index].assignedCheckpoints = checkpointIds
+  await saveGuards(guards)
+  return true
+}
+
+// Get guard with assigned checkpoints
+export function getGuardWithCheckpoints(guardId) {
+  const guard = guards.find(g => g.id === guardId)
+  if (!guard) return null
+  return {
+    ...guard,
+    assignedCheckpoints: guard.assignedCheckpoints || []
+  }
+}
+
+// Get all guards with assigned checkpoints
+export function getGuardsWithCheckpoints() {
+  return guards.map(g => ({
+    ...g,
+    assignedCheckpoints: g.assignedCheckpoints || []
+  }))
+}

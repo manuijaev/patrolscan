@@ -1,10 +1,11 @@
-import { getGuards, addGuard, updateGuard, deleteGuard } from '../data/users.js'
+import { getGuards, addGuard, updateGuard, deleteGuard, assignCheckpoints, getGuardsWithCheckpoints } from '../data/users.js'
 
 export function listGuards(req, res) {
-  const safeGuards = getGuards().map(g => ({
+  const safeGuards = getGuardsWithCheckpoints().map(g => ({
     id: g.id,
     name: g.name,
     role: g.role,
+    assignedCheckpoints: g.assignedCheckpoints || [],
   }))
   res.json(safeGuards)
 }
@@ -26,6 +27,7 @@ export function createGuard(req, res) {
     id: guard.id,
     name: guard.name,
     role: guard.role,
+    assignedCheckpoints: [],
   })
 }
 
@@ -60,4 +62,21 @@ export function removeGuard(req, res) {
   }
   
   return res.json({ message: 'Guard deleted successfully' })
+}
+
+export function assignCheckpointsController(req, res) {
+  const { id } = req.params
+  const { checkpointIds } = req.body
+
+  if (!Array.isArray(checkpointIds)) {
+    return res.status(400).json({ message: 'checkpointIds must be an array' })
+  }
+
+  const success = assignCheckpoints(Number(id), checkpointIds)
+
+  if (!success) {
+    return res.status(404).json({ message: 'Guard not found' })
+  }
+
+  return res.json({ message: 'Checkpoints assigned successfully' })
 }
