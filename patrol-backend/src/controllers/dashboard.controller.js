@@ -121,16 +121,28 @@ export async function getUpcomingPatrols(req, res) {
   try {
     const guards = getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
+    const scans = await getAllScans()
+    
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
     const upcomingPatrols = guards
       .filter(g => g.assignedCheckpoints && g.assignedCheckpoints.length > 0)
       .map(guard => {
         const assigned = guard.assignedCheckpoints.map(cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
+          
+          // Check if guard has scanned this checkpoint today
+          const scannedToday = scans.some(
+            s => s.guardId === guard.id && 
+                s.checkpointId === cpId && 
+                new Date(s.scannedAt) >= startOfToday
+          )
+          
           return {
             id: cpId,
             name: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
-            status: 'pending'
+            status: scannedToday ? 'completed' : 'pending'
           }
         })
         
@@ -138,7 +150,8 @@ export async function getUpcomingPatrols(req, res) {
           guardId: guard.id,
           guardName: guard.name,
           checkpoints: assigned,
-          totalAssigned: assigned.length
+          totalAssigned: assigned.length,
+          completedToday: assigned.filter(a => a.status === 'completed').length
         }
       })
     

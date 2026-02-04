@@ -472,27 +472,41 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <p className="font-semibold">{patrol.guardName}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Assigned Patrol</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {patrol.completedToday}/{patrol.totalAssigned} completed
+                          </p>
                         </div>
                       </div>
-                      <div className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
-                        {patrol.totalAssigned} checkpoints
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        patrol.completedToday === patrol.totalAssigned
+                          ? 'bg-green-500 text-white'
+                          : 'bg-blue-500 text-white'
+                      }`}>
+                        {patrol.completedToday === patrol.totalAssigned ? 'Complete' : 'In Progress'}
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      {patrol.checkpoints.slice(0, 3).map((cp) => (
+                      {patrol.checkpoints.slice(0, 5).map((cp) => (
                         <div 
                           key={cp.id}
-                          className="flex items-center gap-2 text-sm"
+                          className={`flex items-center gap-2 text-sm ${
+                            cp.status === 'completed' 
+                              ? 'text-green-600 dark:text-green-400' 
+                              : 'text-gray-600 dark:text-gray-300'
+                          }`}
                         >
-                          <IconMapPin size={14} className="text-blue-400" />
+                          {cp.status === 'completed' ? (
+                            <IconCheck size={14} className="text-green-500" />
+                          ) : (
+                            <IconMapPin size={14} className="text-blue-400" />
+                          )}
                           <span>{cp.name}</span>
                         </div>
                       ))}
-                      {patrol.checkpoints.length > 3 && (
+                      {patrol.checkpoints.length > 5 && (
                         <p className="text-xs text-gray-400">
-                          +{patrol.checkpoints.length - 3} more
+                          +{patrol.checkpoints.length - 5} more
                         </p>
                       )}
                     </div>
