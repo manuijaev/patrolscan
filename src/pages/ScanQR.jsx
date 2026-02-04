@@ -43,6 +43,7 @@ export default function ScanQR() {
   const processingTimeoutRef = useRef(null)
   const safetyTimeoutRef = useRef(null)
   const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
+  const [activeCooldownCheckpoint, setActiveCooldownCheckpoint] = useState(null) // Track which checkpoint is in cooldown
 
   // Network status
   useEffect(() => {
@@ -72,6 +73,24 @@ export default function ScanQR() {
   useEffect(() => {
     loadRecentScans()
     getLocation()
+    
+    // Restore cooldown state from localStorage
+    const activeCheckpointId = localStorage.getItem('activeCooldownCheckpoint')
+    if (activeCheckpointId) {
+      const lastScanTime = localStorage.getItem(`lastScan_${activeCheckpointId}`)
+      if (lastScanTime) {
+        const elapsed = Date.now() - parseInt(lastScanTime)
+        const remaining = CHECKPOINT_COOLDOWN_MS - elapsed
+        if (remaining > 0) {
+          setScanState('success') // Prevent scanner from starting during cooldown
+          setShowTick(true)
+          setActiveCooldownCheckpoint(activeCheckpointId)
+          startCooldown(remaining, activeCheckpointId)
+        } else {
+          localStorage.removeItem('activeCooldownCheckpoint')
+        }
+      }
+    }
   }, [])
 
   async function getLocation() {
@@ -180,9 +199,14 @@ export default function ScanQR() {
   }, [scanState, cameraError, startScanner])
 
   // Start cooldown timer
-  const startCooldown = useCallback((duration) => {
+  const startCooldown = useCallback((duration, checkpointId = null) => {
     const endTime = Date.now() + duration
     setCooldownTime(Math.ceil(duration / 1000))
+
+    if (checkpointId) {
+      setActiveCooldownCheckpoint(checkpointId)
+      localStorage.setItem('activeCooldownCheckpoint', checkpointId)
+    }
 
     cooldownTimerRef.current = setInterval(() => {
       const remaining = Math.ceil((endTime - Date.now()) / 1000)
@@ -193,6 +217,8 @@ export default function ScanQR() {
         setScanState('idle')
         setShowTick(false)
         setShowCross(false)
+        setActiveCooldownCheckpoint(null)
+        localStorage.removeItem('activeCooldownCheckpoint')
         lastScannedQrRef.current = ''
       }
     }, 1000)
@@ -332,7 +358,7 @@ export default function ScanQR() {
       }
       
       loadRecentScans()
-      startCooldown(CHECKPOINT_COOLDOWN_MS) // 2 minutes for success
+      startCooldown(CHECKPOINT_COOLDOWN_MS, checkpointId) // 2 minutes for success
     } else {
       setShowTick(false)
       setShowCross(true)
