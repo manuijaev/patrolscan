@@ -71,44 +71,55 @@ export default function ScanQR() {
 
   // Load recent scans and location on mount
   useEffect(() => {
-    loadRecentScans()
     getLocation()
     
     // Restore cooldown state from localStorage
     const activeCheckpointId = localStorage.getItem('activeCooldownCheckpoint')
     const scanResult = localStorage.getItem('scanResult') // 'success' or 'failed'
-    if (activeCheckpointId) {
-      const lastScanTime = localStorage.getItem(`lastScan_${activeCheckpointId}`)
-      if (lastScanTime) {
-        const elapsed = Date.now() - parseInt(lastScanTime)
-        const remaining = CHECKPOINT_COOLDOWN_MS - elapsed
-        if (remaining > 0) {
-          setScanState(scanResult || 'success')
-          setShowTick(scanResult !== 'failed')
-          setShowCross(scanResult === 'failed')
-          setCooldownTime(Math.ceil(remaining / 1000))
-          
-          // Start inline cooldown timer
-          const endTime = Date.now() + remaining
-          cooldownTimerRef.current = setInterval(() => {
-            const secsRemaining = Math.ceil((endTime - Date.now()) / 1000)
-            setCooldownTime(secsRemaining)
-            if (secsRemaining <= 0) {
-              clearInterval(cooldownTimerRef.current)
-              setScanState('idle')
-              setShowTick(false)
-              setShowCross(false)
-              setActiveCooldownCheckpoint(null)
-              localStorage.removeItem('activeCooldownCheckpoint')
-              localStorage.removeItem('scanResult')
-              lastScannedQrRef.current = ''
-            }
-          }, 1000)
-        } else {
-          localStorage.removeItem('activeCooldownCheckpoint')
-          localStorage.removeItem('scanResult')
-        }
+    const scanTimestamp = localStorage.getItem('scanTimestamp') // When scan was recorded
+    
+    if (activeCheckpointId && scanTimestamp) {
+      const lastScanTime = parseInt(scanTimestamp)
+      const elapsed = Date.now() - lastScanTime
+      const remaining = CHECKPOINT_COOLDOWN_MS - elapsed
+      
+      if (remaining > 0) {
+        // Still in cooldown - show cooldown UI only, don't refetch scans
+        setScanState('success')
+        setCooldownTime(Math.ceil(remaining / 1000))
+        setActiveCooldownCheckpoint(activeCheckpointId)
+        
+        // Start inline cooldown timer
+        const endTime = Date.now() + remaining
+        cooldownTimerRef.current = setInterval(() => {
+          const secsRemaining = Math.ceil((endTime - Date.now()) / 1000)
+          setCooldownTime(secsRemaining)
+          if (secsRemaining <= 0) {
+            clearInterval(cooldownTimerRef.current)
+            setScanState('idle')
+            setCooldownTime(0)
+            setActiveCooldownCheckpoint(null)
+            localStorage.removeItem('activeCooldownCheckpoint')
+            localStorage.removeItem('scanResult')
+            localStorage.removeItem('scanTimestamp')
+            lastScannedQrRef.current = ''
+            // Load scans only after cooldown expires
+            loadRecentScans()
+          }
+        }, 1000)
+        
+        // Load scans in background but don't block
+        loadRecentScans()
+      } else {
+        // Cooldown expired while away - clear all
+        localStorage.removeItem('activeCooldownCheckpoint')
+        localStorage.removeItem('scanResult')
+        localStorage.removeItem('scanTimestamp')
+        loadRecentScans()
       }
+    } else {
+      // No active cooldown - load scans normally
+      loadRecentScans()
     }
   }, [])
 
@@ -293,14 +304,17 @@ export default function ScanQR() {
         name: checkpointName
       })
 
-      // Check checkpoint cooldown
-      const lastScanTime = localStorage.getItem(`lastScan_${checkpointId}`)
-      if (lastScanTime && (Date.now() - parseInt(lastScanTime)) < CHECKPOINT_COOLDOWN_MS) {
-        const remaining = Math.ceil((CHECKPOINT_COOLDOWN_MS - (Date.now() - parseInt(lastScanTime))) / 1000)
-        clearTimeout(safetyTimeoutRef.current)
-        toast.error(`Please wait ${remaining}s before scanning again`)
-        completeScan(false)
-        return
+      // Check checkpoint cooldown using timestamp
+      const scanTimestamp = localStorage.getItem('scanTimestamp')
+      if (scanTimestamp) {
+        const elapsed = Date.now() - parseInt(scanTimestamp)
+        if (elapsed < CHECKPOINT_COOLDOWN_MS) {
+          const remaining = Math.ceil((CHECKPOINT_COOLDOWN_MS - elapsed) / 1000)
+          clearTimeout(safetyTimeoutRef.current)
+          toast.error(`Please wait ${remaining}s before scanning again`)
+          // Don't show tick/cross, just reject
+          return
+        }
       }
 
       // Clear safety timeout since we're handling it
@@ -378,7 +392,6 @@ export default function ScanQR() {
       }
 
       if (isDesignated) {
-        localStorage.setItem(`lastScan_${checkpointId}`, Date.now().toString())
         completeScan(true, checkpointId, checkpointName)
       } else {
         completeScan(false, null, errorMessage || 'Not Designated')
@@ -420,15 +433,17 @@ export default function ScanQR() {
         navigator.vibrate([100, 50, 100])
       }
       
-      loadRecentScans()
-      localStorage.setItem('scanResult', 'success') // Save scan result for persistence
+      // Save timestamp for cooldown tracking - don't refetch scans during cooldown
+      localStorage.setItem('scanResult', 'success')
+      localStorage.setItem('scanTimestamp', Date.now().toString())
       startCooldown(CHECKPOINT_COOLDOWN_MS, checkpointId) // 2 minutes for success
     } else {
       setShowTick(false)
       setShowCross(true)
       setScanState('failed')
       toast.error(checkpointName === 'Not Assigned' ? 'Not assigned to this checkpoint' : 'Scan failed. Please try again.')
-      localStorage.setItem('scanResult', 'failed') // Save scan result for persistence
+      localStorage.setItem('scanResult', 'failed')
+      localStorage.setItem('scanTimestamp', Date.now().toString())
       startCooldown(FAIL_COOLDOWN_MS) // 10 seconds for failure
     }
   }
@@ -455,6 +470,7 @@ export default function ScanQR() {
     // Clear localStorage
     localStorage.removeItem('activeCooldownCheckpoint')
     localStorage.removeItem('scanResult')
+    localStorage.removeItem('scanTimestamp')
     
     // Start scanner after delay
     setTimeout(() => {
