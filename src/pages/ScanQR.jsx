@@ -44,6 +44,7 @@ export default function ScanQR() {
   const safetyTimeoutRef = useRef(null)
   const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
   const [activeCooldownCheckpoint, setActiveCooldownCheckpoint] = useState(null) // Track which checkpoint is in cooldown
+  const isFirstMount = useRef(true)
 
   // Network status
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function ScanQR() {
       
       if (remaining > 0) {
         // Still in cooldown - show cooldown UI only, don't refetch scans
-        setScanState('success')
+        setScanState('cooldown') // Block scanner during cooldown
         setCooldownTime(Math.ceil(remaining / 1000))
         setActiveCooldownCheckpoint(activeCheckpointId)
         
@@ -96,15 +97,13 @@ export default function ScanQR() {
           setCooldownTime(secsRemaining)
           if (secsRemaining <= 0) {
             clearInterval(cooldownTimerRef.current)
-            setScanState('idle')
+            setScanState('idle') // Scanner will restart only when manually restarted
             setCooldownTime(0)
             setActiveCooldownCheckpoint(null)
             localStorage.removeItem('activeCooldownCheckpoint')
             localStorage.removeItem('scanResult')
             localStorage.removeItem('scanTimestamp')
             lastScannedQrRef.current = ''
-            // Load scans only after cooldown expires
-            loadRecentScans()
           }
         }, 1000)
         
@@ -218,6 +217,12 @@ export default function ScanQR() {
 
   // Initialize scanner when idle
   useEffect(() => {
+    // Skip on first mount - let cooldown restore logic handle it
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
+    
     if (scanState === 'idle' && !cameraError) {
       startScanner()
     }
@@ -232,6 +237,7 @@ export default function ScanQR() {
   const startCooldown = useCallback((duration, checkpointId = null) => {
     const endTime = Date.now() + duration
     setCooldownTime(Math.ceil(duration / 1000))
+    setScanState('cooldown') // Block scanner during cooldown
 
     if (checkpointId) {
       setActiveCooldownCheckpoint(checkpointId)
@@ -422,7 +428,7 @@ export default function ScanQR() {
     if (success) {
       setShowTick(true)
       setShowCross(false)
-      setScanState('success')
+      setScanState('cooldown') // Don't restart scanner automatically after cooldown
       if (checkpointName === 'Not Assigned') {
         toast.error(checkpointName)
       } else {
@@ -440,7 +446,7 @@ export default function ScanQR() {
     } else {
       setShowTick(false)
       setShowCross(true)
-      setScanState('failed')
+      setScanState('cooldown') // Don't restart scanner automatically after cooldown
       toast.error(checkpointName === 'Not Assigned' ? 'Not assigned to this checkpoint' : 'Scan failed. Please try again.')
       localStorage.setItem('scanResult', 'failed')
       localStorage.setItem('scanTimestamp', Date.now().toString())
