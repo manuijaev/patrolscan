@@ -46,11 +46,11 @@ export default function PWAInstallPrompt() {
   return (
     <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 p-4">
       <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        </div>
+        <img 
+          src="/patrolscanimg.png" 
+          alt="Patrol Scan" 
+          className="w-12 h-12 rounded-lg flex-shrink-0 object-contain"
+        />
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900 dark:text-white">Install Patrol Scan</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">

@@ -379,8 +379,9 @@ export default function ScanQR() {
           if (err.response?.data?.designated === false) {
             isDesignated = false
             errorMessage = err.response?.data?.message || 'Not designated for this checkpoint'
+            // Don't save to offline - not designated scans are not reported
           } else {
-            // Save offline if server fails (for other errors)
+            // Save offline if server fails (for other errors like network issues)
             await saveOfflineScan(scanPayload)
             isDesignated = true
           }
@@ -400,7 +401,13 @@ export default function ScanQR() {
       if (isDesignated) {
         completeScan(true, checkpointId, checkpointName)
       } else {
-        completeScan(false, null, errorMessage || 'Not Designated')
+        // Not designated - show failed, no cooldown, no report sent
+        clearTimeout(safetyTimeoutRef.current)
+        setShowTick(false)
+        setShowCross(true)
+        setScanState('cooldown')
+        toast.error(errorMessage || 'Not assigned to this checkpoint')
+        // Don't save to offline, don't send report, no cooldown timer
       }
     } catch (error) {
       console.error('Process scan error:', error)

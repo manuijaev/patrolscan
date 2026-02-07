@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'patrolscanimg.png', 'robots.txt'],
+      includeAssets: ['patrolscanimg.png', 'robots.txt'],
       manifest: {
         name: 'Patrol Scan',
         short_name: 'PatrolScan',
@@ -38,23 +38,18 @@ export default defineConfig({
         ],
         icons: [
           {
-            src: 'pwa-64x64.png',
-            sizes: '64x64',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-192x192.png',
+            src: 'patrolscanimg.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'patrolscanimg.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'maskable-icon-512x512.png',
+            src: 'patrolscanimg.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
