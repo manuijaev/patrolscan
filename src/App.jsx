@@ -11,13 +11,32 @@ import ScanQR from './pages/ScanQR'
 import AdminLogin from './auth/AdminLogin'
 import GuardLogin from './auth/GuardLogin'
 import RequireAuth from './auth/RequireAuth'
+import { getUser } from './auth/authStore'
+
+function GuardLoginPage() {
+  const user = getUser()
+  
+  // If guard is already logged in, stay on guard login (PWA behavior)
+  if (user?.role === 'guard') {
+    return <GuardLogin />
+  }
+  
+  // If admin is logged in, redirect to dashboard
+  if (user?.role === 'admin') {
+    return <Navigate to="/dashboard" replace />
+  }
+  
+  // Not logged in, show guard login
+  return <GuardLogin />
+}
 
 export default function App() {
   return (
     <Routes>
       {/* Public */}
+      <Route path="/" element={<Navigate to="/guard-login" replace />} />
       <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/guard-login" element={<GuardLogin />} />
+      <Route path="/guard-login" element={<GuardLoginPage />} />
 
       {/* Protected */}
       {/* Admin App */}

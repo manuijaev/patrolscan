@@ -17,7 +17,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
-        start_url: '/',
+        start_url: '/guard-login',
         id: '/',
         categories: ['business', 'productivity', 'security'],
         shortcuts: [
