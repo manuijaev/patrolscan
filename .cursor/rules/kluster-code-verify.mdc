@@ -16,7 +16,7 @@ alwaysApply: true
 - **REQUIREMENTS**: Follow kluster_code_review_auto field descriptions strictly
 - **USER COMMUNICATION**: After any kluster_code_review_auto analysis, ALWAYS tell the user what issues were found and what you're about to fix BEFORE making any changes. Never fix silently - announce first, then fix
 - **PRIORITY**: kluster MUST ALWAYS run, even if other code review tools (Codacy, SonarQube, ESLint, etc.) are already running or have run. kluster provides additional security and quality analysis that complements other tools
-
+- **CRITICAL**: You have to read tool schema file to understand tool parameters before calling kluster_code_review_auto. To check yourself - "Have I read kluster_code_review_auto tool schema already?"
 
 ## Manual Code Review (kluster_code_review_manual)
 - **WHEN TO RUN**: Only when explicitly requested by user

@@ -34,6 +34,13 @@ export default function Checkpoints() {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const qrRef = useRef(null)
 
+  // Geolocation state
+  const [latitude, setLatitude] = useState(null)
+  const [longitude, setLongitude] = useState(null)
+  const [gpsAccuracy, setGpsAccuracy] = useState(null)
+  const [allowedRadius, setAllowedRadius] = useState(30)
+  const [capturingLocation, setCapturingLocation] = useState(false)
+
   async function loadCheckpoints() {
     try {
       const res = await api.get('/checkpoints', {
@@ -50,10 +57,77 @@ export default function Checkpoints() {
     loadCheckpoints()
   }, [])
 
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  async function handleCaptureLocation() {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported on this device/browser')
+      return
+    }
+
+    setCapturingLocation(true)
+    toast.success('Stand still near the checkpoint for 2–3 seconds...')
+
+    try {
+      // Allow GPS to stabilise a bit before capturing
+      await wait(2000)
+
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude: lat, longitude: lng, accuracy } = position.coords
+
+          setLatitude(lat)
+          setLongitude(lng)
+          setGpsAccuracy(accuracy)
+
+          if (accuracy > 30) {
+            toast.error('Signal too weak. Please wait and try again.')
+          } else {
+            toast.success(`Location captured (±${accuracy.toFixed(1)}m)`)
+          }
+
+          setCapturingLocation(false)
+        },
+        error => {
+          console.error('Geolocation error', error)
+          toast.error(
+            error.message || 'Failed to capture location. Please try again.'
+          )
+          setCapturingLocation(false)
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000,
+        }
+      )
+    } catch (err) {
+      console.error('Error during location capture', err)
+      toast.error('Failed to capture location')
+      setCapturingLocation(false)
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
-    if (!name.trim() || !location.trim()) {
-      toast.error('Name and location are required')
+    if (!name.trim()) {
+      toast.error('Name is required')
+      return
+    }
+
+    if (
+      latitude == null ||
+      longitude == null ||
+      gpsAccuracy == null
+    ) {
+      toast.error('Please capture a valid GPS location before saving')
+      return
+    }
+
+    if (gpsAccuracy > 30) {
+      toast.error('Signal too weak. Please wait and try again.')
       return
     }
 
@@ -61,13 +135,25 @@ export default function Checkpoints() {
     try {
       await api.post(
         '/checkpoints',
-        { name: name.trim(), location: location.trim(), description: description.trim() },
+        {
+          name: name.trim(),
+          location: location.trim(),
+          description: description.trim(),
+          latitude,
+          longitude,
+          accuracy: gpsAccuracy,
+          allowed_radius: Number(allowedRadius) || 30,
+        },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
       toast.success('Checkpoint created successfully')
       setName('')
       setLocation('')
       setDescription('')
+      setLatitude(null)
+      setLongitude(null)
+      setGpsAccuracy(null)
+      setAllowedRadius(30)
       await loadCheckpoints()
     } catch (err) {
       console.error('Failed to create checkpoint', err)
@@ -145,11 +231,10 @@ export default function Checkpoints() {
     setSelectedCheckpoint(checkpoint)
     setQrModalOpen(true)
 
-    // Generate QR code with checkpoint ID
+    // Generate QR code with checkpoint ID only
     const qrContent = JSON.stringify({
       type: 'patrol-checkpoint',
       id: checkpoint.id,
-      name: checkpoint.name
     })
 
     try {
@@ -211,13 +296,66 @@ export default function Checkpoints() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-[color:var(--text-muted)]">Location</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-[color:var(--text-muted)]">
+                GPS Location (admin must be at checkpoint)
+              </label>
+              <span className="text-xs text-[color:var(--text-muted)]">
+                Mobile device recommended
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCaptureLocation}
+              disabled={capturingLocation}
+              className="w-full py-2 rounded-xl border border-[color:var(--accent)]
+                text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)]
+                transition font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              <IconMapPin size={18} />
+              {capturingLocation ? 'Capturing location…' : 'Capture Location'}
+            </button>
+            {latitude != null && longitude != null && (
+              <div className="mt-2 space-y-1 text-xs text-[color:var(--text-muted)]">
+                <p>
+                  Lat: {latitude.toFixed(6)}, Lng: {longitude.toFixed(6)}
+                </p>
+                {gpsAccuracy != null && (
+                  <p
+                    className={
+                      gpsAccuracy > 30 ? 'text-red-500' : 'text-green-600'
+                    }
+                  >
+                    Accuracy: ±{gpsAccuracy.toFixed(1)}m{' '}
+                    {gpsAccuracy > 30 && '(too weak – recapture)'}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-[color:var(--text-muted)]">Location label</label>
             <input
               value={location}
               onChange={e => setLocation(e.target.value)}
               className="w-full rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2
                 focus:outline-none focus:border-[color:var(--accent)]"
               placeholder="e.g., Building A, North Side"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-[color:var(--text-muted)]">
+              Allowed radius (meters)
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={allowedRadius}
+              onChange={e => setAllowedRadius(e.target.value)}
+              className="w-full rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2
+                focus:outline-none focus:border-[color:var(--accent)]"
             />
           </div>
 
@@ -234,7 +372,14 @@ export default function Checkpoints() {
           </div>
 
           <button
-            disabled={loading || !name.trim() || !location.trim()}
+            disabled={
+              loading ||
+              !name.trim() ||
+              latitude == null ||
+              longitude == null ||
+              gpsAccuracy == null ||
+              gpsAccuracy > 30
+            }
             className="w-full py-2 rounded-xl bg-[color:var(--accent)]
               hover:bg-[color:var(--accent-strong)] transition font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
           >
