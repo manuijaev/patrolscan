@@ -144,7 +144,7 @@ export const recordScan = async (req, res) => {
     let distanceMeters = null
     const requiredRadius = typeof checkpoint.allowed_radius === 'number'
       ? checkpoint.allowed_radius
-      : 30
+      : 1
 
     // Only enforce GPS rules if checkpoint has coordinates and guard sent location
     if (

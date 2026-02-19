@@ -349,24 +349,8 @@ export default function Dashboard() {
                           <p className="font-semibold">{scan.guardName}</p>
                           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
                             <span>Guard #{scan.guardId}</span>
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
-                                isFailed
-                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                              }`}
-                            >
-                              {isFailed ? (
-                                <>
-                                  <IconX size={12} />
-                                  Failed
-                                </>
-                              ) : (
-                                <>
-                                  <IconCheck size={12} />
-                                  Passed
-                                </>
-                              )}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[color:var(--text-muted)]">
+                              {isFailed ? 'Failed' : 'Passed'}
                             </span>
                           </div>
                         </div>
@@ -379,19 +363,9 @@ export default function Dashboard() {
                     {/* Timeline Visualization */}
                     <div className="relative pl-10 ml-2 border-l-2 border-gray-200 dark:border-gray-700">
                       <div className="relative mb-4 last:mb-0">
-                        {/* Timeline dot */}
-                        <div
-                          className={`absolute -left-[25px] w-8 h-8 rounded-full border-2 flex items-center justify-center ${
-                            isFailed
-                              ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700'
-                              : 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700'
-                          }`}
-                        >
-                          {isFailed ? (
-                            <IconX size={14} className="text-red-500" />
-                          ) : (
-                            <IconCheck size={14} className="text-green-500" />
-                          )}
+                        {/* Timeline dot (neutral) */}
+                        <div className="absolute -left-[25px] w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                          <span className="text-xs text-gray-600 dark:text-gray-300">•</span>
                         </div>
 
                         {/* Timeline content */}
@@ -584,11 +558,9 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        isFailed ? 'bg-red-500' : 'bg-green-500'
-                      }`}
-                    />
+                    <span className="text-xs text-[color:var(--text-muted)]">
+                      {isFailed ? 'Failed' : 'Passed'}
+                    </span>
                   </div>
                 </div>
               )

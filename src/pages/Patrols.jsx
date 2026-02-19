@@ -88,16 +88,8 @@ export default function Patrols() {
                     </td>
                     <td className="py-3 pr-4">{log.guardName}</td>
                     <td className="py-3 pr-4">{log.checkpointName}</td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          log.result === 'failed'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}
-                      >
-                        {log.result === 'failed' ? 'Failed' : 'Passed'}
-                      </span>
+                    <td className="py-3 pr-4 text-xs text-[color:var(--text-muted)]">
+                      {log.result === 'failed' ? 'Failed' : 'Passed'}
                     </td>
                   </tr>
                 ))}

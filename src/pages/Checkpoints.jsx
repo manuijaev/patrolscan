@@ -38,7 +38,7 @@ export default function Checkpoints() {
   const [latitude, setLatitude] = useState(null)
   const [longitude, setLongitude] = useState(null)
   const [gpsAccuracy, setGpsAccuracy] = useState(null)
-  const [allowedRadius, setAllowedRadius] = useState(30)
+  const [allowedRadius, setAllowedRadius] = useState(1)
   const [capturingLocation, setCapturingLocation] = useState(false)
 
   async function loadCheckpoints() {
@@ -137,7 +137,7 @@ export default function Checkpoints() {
           latitude,
           longitude,
           accuracy: gpsAccuracy,
-          allowed_radius: Number(allowedRadius) || 30,
+          allowed_radius: Number(allowedRadius) || 1,
         },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
@@ -148,7 +148,7 @@ export default function Checkpoints() {
       setLatitude(null)
       setLongitude(null)
       setGpsAccuracy(null)
-      setAllowedRadius(30)
+      setAllowedRadius(1)
       await loadCheckpoints()
     } catch (err) {
       console.error('Failed to create checkpoint', err)
