@@ -339,14 +339,39 @@ export default function ScanQR() {
   // Process scan (API call)
   const processScan = async (checkpointId, checkpointName, designatedUser) => {
     try {
+      // Capture fresh location right before scanning
+      let currentLocation = userLocation
+      if (!currentLocation || !currentLocation.latitude || !currentLocation.longitude) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            })
+          })
+          currentLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          }
+          setUserLocation(currentLocation)
+        } catch (err) {
+          console.error('Failed to get location:', err)
+          toast.error('Location access required. Please enable GPS and try again.')
+          completeScan(false)
+          return
+        }
+      }
+
       const token = getToken()
       const scanPayload = {
         checkpointId: checkpointId,
         checkpointName: checkpointName,
         designatedUser: designatedUser,
-        latitude: userLocation?.latitude || null,
-        longitude: userLocation?.longitude || null,
-        accuracy: userLocation?.accuracy || null,
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        accuracy: currentLocation.accuracy,
         notes: '',
         timestamp: new Date().toISOString()
       }

@@ -164,21 +164,23 @@ export const recordScan = async (req, res) => {
         )
 
         const accuracyMeters =
-          typeof accuracy === 'number' && !Number.isNaN(accuracy)
+          typeof accuracy === 'number' && !Number.isNaN(accuracy) && accuracy > 0
             ? accuracy
             : 0
 
-        // Treat accuracy as an error radius: we only fail if the
-        // distance minus this buffer still exceeds the allowed radius.
-        const effectiveDistance = Math.max(0, distanceMeters - accuracyMeters)
+        // More forgiving validation:
+        // 1. If distance is already within allowed radius, pass immediately
+        // 2. Otherwise, account for GPS accuracy uncertainty
+        // 3. Pass if (distance - accuracy) <= allowed_radius OR if distance <= (allowed_radius + accuracy)
+        const withinRadius = distanceMeters <= requiredRadius
+        const withinAccuracyBuffer = accuracyMeters > 0 
+          ? distanceMeters <= (requiredRadius + accuracyMeters)
+          : false
 
-        if (effectiveDistance > requiredRadius) {
+        if (!withinRadius && !withinAccuracyBuffer) {
+          const effectiveDistance = Math.max(0, distanceMeters - accuracyMeters)
           reasons.push(
-            `Effective distance ${effectiveDistance.toFixed(
-              1
-            )}m (after accounting for ±${accuracyMeters.toFixed(
-              1
-            )}m accuracy) exceeds allowed radius of ${requiredRadius}m`
+            `Distance ${distanceMeters.toFixed(1)}m exceeds allowed radius of ${requiredRadius}m${accuracyMeters > 0 ? ` (GPS accuracy ±${accuracyMeters.toFixed(1)}m)` : ''}`
           )
         }
       }
