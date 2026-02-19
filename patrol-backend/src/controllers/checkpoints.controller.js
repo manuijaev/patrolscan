@@ -40,7 +40,7 @@ export const create = async (req, res) => {
       return res.status(400).json({ error: 'Name is required' })
     }
 
-    // Require GPS-based creation for new checkpoints
+    // Require GPS-based creation for new checkpoints (but do not enforce a hard accuracy threshold here)
     if (
       typeof latitude !== 'number' ||
       typeof longitude !== 'number' ||
@@ -51,12 +51,6 @@ export const create = async (req, res) => {
         error:
           'Latitude, longitude, accuracy, and allowed_radius are required and must be numbers',
       })
-    }
-
-    if (accuracy > 30) {
-      return res
-        .status(400)
-        .json({ error: 'Signal too weak. Please wait and try again.' })
     }
 
     const newCheckpoint = await checkpoints.create({

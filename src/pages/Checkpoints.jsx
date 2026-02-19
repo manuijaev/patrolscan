@@ -126,11 +126,6 @@ export default function Checkpoints() {
       return
     }
 
-    if (gpsAccuracy > 30) {
-      toast.error('Signal too weak. Please wait and try again.')
-      return
-    }
-
     setLoading(true)
     try {
       await api.post(
@@ -377,8 +372,7 @@ export default function Checkpoints() {
               !name.trim() ||
               latitude == null ||
               longitude == null ||
-              gpsAccuracy == null ||
-              gpsAccuracy > 30
+              gpsAccuracy == null
             }
             className="w-full py-2 rounded-xl bg-[color:var(--accent)]
               hover:bg-[color:var(--accent-strong)] transition font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
