@@ -163,17 +163,24 @@ export const recordScan = async (req, res) => {
           checkpoint.longitude
         )
 
-        if (distanceMeters > requiredRadius) {
+        const accuracyMeters =
+          typeof accuracy === 'number' && !Number.isNaN(accuracy)
+            ? accuracy
+            : 0
+
+        // Treat accuracy as an error radius: we only fail if the
+        // distance minus this buffer still exceeds the allowed radius.
+        const effectiveDistance = Math.max(0, distanceMeters - accuracyMeters)
+
+        if (effectiveDistance > requiredRadius) {
           reasons.push(
-            `Guard is ${distanceMeters.toFixed(1)}m away which exceeds allowed radius of ${requiredRadius}m`
+            `Effective distance ${effectiveDistance.toFixed(
+              1
+            )}m (after accounting for ±${accuracyMeters.toFixed(
+              1
+            )}m accuracy) exceeds allowed radius of ${requiredRadius}m`
           )
         }
-      }
-
-      if (typeof accuracy === 'number' && accuracy > requiredRadius) {
-        reasons.push(
-          `GPS accuracy ±${accuracy.toFixed(1)}m is worse than required ${requiredRadius}m`
-        )
       }
 
       if (reasons.length > 0) {

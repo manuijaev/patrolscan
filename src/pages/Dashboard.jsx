@@ -335,8 +335,9 @@ export default function Dashboard() {
                 <p className="text-sm">Scans will appear here when guards start scanning checkpoints</p>
               </div>
             ) : (
-              timelineData.map((scan) => {
+              timelineData.slice(0, 3).map((scan) => {
                 const scanTime = new Date(scan.scannedAt)
+                const isFailed = scan.result === 'failed'
                 return (
                   <div key={scan.id} className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -346,8 +347,27 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <p className="font-semibold">{scan.guardName}</p>
-                          <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-1">
                             <span>Guard #{scan.guardId}</span>
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
+                                isFailed
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              }`}
+                            >
+                              {isFailed ? (
+                                <>
+                                  <IconX size={12} />
+                                  Failed
+                                </>
+                              ) : (
+                                <>
+                                  <IconCheck size={12} />
+                                  Passed
+                                </>
+                              )}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -360,8 +380,18 @@ export default function Dashboard() {
                     <div className="relative pl-10 ml-2 border-l-2 border-gray-200 dark:border-gray-700">
                       <div className="relative mb-4 last:mb-0">
                         {/* Timeline dot */}
-                        <div className="absolute -left-[25px] w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 border-2 border-green-300 dark:border-green-700 flex items-center justify-center">
-                          <IconCheck size={14} className="text-green-500" />
+                        <div
+                          className={`absolute -left-[25px] w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                            isFailed
+                              ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700'
+                              : 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700'
+                          }`}
+                        >
+                          {isFailed ? (
+                            <IconX size={14} className="text-red-500" />
+                          ) : (
+                            <IconCheck size={14} className="text-green-500" />
+                          )}
                         </div>
 
                         {/* Timeline content */}
@@ -371,10 +401,15 @@ export default function Dashboard() {
                               <IconMapPin size={16} className="text-gray-400" />
                               <span className="font-medium">{scan.checkpointName}</span>
                             </div>
+                            <span className="text-xs text-gray-400">
+                              {scanTime.toLocaleDateString()}
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {scanTime.toLocaleDateString()}
-                          </div>
+                          {isFailed && scan.failureReason && (
+                            <p className="text-xs text-red-500 mt-1">
+                              {scan.failureReason}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -537,6 +572,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             {timelineData.slice(0, 5).map((scan) => {
               const timeAgo = getTimeAgo(new Date(scan.scannedAt))
+              const isFailed = scan.result === 'failed'
               return (
                 <div
                   key={scan.id}
@@ -548,7 +584,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        isFailed ? 'bg-red-500' : 'bg-green-500'
+                      }`}
+                    />
                   </div>
                 </div>
               )
