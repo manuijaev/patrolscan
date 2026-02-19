@@ -1,34 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconBell } from '@tabler/icons-react'
 import { toast } from 'react-hot-toast'
-
-const seedNotifications = [
-  {
-    id: 1,
-    title: 'Checkpoint missed',
-    detail: 'Gate A has no scan in 45 minutes.',
-    time: '2m ago',
-    unread: true,
-  },
-  {
-    id: 2,
-    title: 'Route completed',
-    detail: 'Night Shift Route completed by Guard One.',
-    time: '12m ago',
-    unread: true,
-  },
-  {
-    id: 3,
-    title: 'Guard idle',
-    detail: 'Guard Two has been idle for 25 minutes.',
-    time: '34m ago',
-    unread: false,
-  },
-]
+import api from '../../api/axios'
+import { getToken } from '../../auth/authStore'
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
-  const [items, setItems] = useState(seedNotifications)
+  const [items, setItems] = useState([])
   const panelRef = useRef(null)
 
   const unreadCount = useMemo(
@@ -44,8 +22,45 @@ export default function NotificationBell() {
       }
     }
 
+    async function loadNotifications() {
+      try {
+        const token = getToken()
+        const res = await api.get('/dashboard/timeline', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        const mapped = res.data.slice(0, 15).map((scan, index) => ({
+          id: scan.id || index,
+          title:
+            scan.result === 'failed'
+              ? `Scan failed - ${scan.guardName || 'Guard'}`
+              : `Scan passed - ${scan.guardName || 'Guard'}`,
+          detail:
+            scan.result === 'failed'
+              ? `${scan.checkpointName || 'Checkpoint'}: ${scan.failureReason || 'Did not meet location/accuracy requirements.'}`
+              : `${scan.checkpointName || 'Checkpoint'}: Successful check-in.`,
+          time: new Date(scan.scannedAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          unread: scan.result === 'failed',
+        }))
+
+        setItems(mapped)
+      } catch (err) {
+        console.error('Failed to load notifications', err)
+      }
+    }
+
     document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
+    loadNotifications()
+
+    const intervalId = setInterval(loadNotifications, 30000)
+
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      clearInterval(intervalId)
+    }
   }, [])
 
   function markAllRead() {

@@ -12,24 +12,27 @@ export async function getStats(req, res) {
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
-    // Scans today
-    const scansToday = scans.filter(s => new Date(s.scannedAt) >= startOfToday).length
+    // Only count successful scans (result !== 'failed') for stats
+    const successfulScans = scans.filter(s => s.result !== 'failed')
+
+    // Scans today (successful only)
+    const scansToday = successfulScans.filter(s => new Date(s.scannedAt) >= startOfToday).length
     
     // Calculate completion rate (scans / (guards * checkpoints))
     const totalPossibleScans = guards.length * checkpoints.length
     const completionRate = totalPossibleScans > 0 
-      ? Math.round((scans.length / totalPossibleScans) * 100) 
+      ? Math.round((successfulScans.length / totalPossibleScans) * 100) 
       : 0
     
     // Active guards (guards with scans in the last 24 hours)
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const activeGuards = guards.filter(g => 
-      scans.some(s => s.guardId === g.id && new Date(s.scannedAt) >= oneDayAgo)
+      successfulScans.some(s => s.guardId === g.id && new Date(s.scannedAt) >= oneDayAgo)
     ).length
     
     // Missed checkpoints (checkpoints with no scans in last 24 hours)
     const missedCheckpoints = checkpoints.filter(cp => 
-      !scans.some(s => s.checkpointId === cp.id && new Date(s.scannedAt) >= oneDayAgo)
+      !successfulScans.some(s => s.checkpointId === cp.id && new Date(s.scannedAt) >= oneDayAgo)
     ).length
     
     res.json({
@@ -38,7 +41,7 @@ export async function getStats(req, res) {
       activeGuards: activeGuards,
       totalCheckpoints: checkpoints.length,
       totalGuards: guards.length,
-      totalScans: scans.length,
+      totalScans: successfulScans.length,
       completionRate: completionRate
     })
   } catch (error) {
@@ -66,7 +69,9 @@ export async function getTimeline(req, res) {
           checkpointId: scan.checkpointId,
           checkpointName: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
           scannedAt: scan.scannedAt,
-          location: scan.location || null
+          location: scan.location || null,
+          result: scan.result || 'passed',
+          failureReason: scan.failureReason || null
         }
       })
     
@@ -88,7 +93,8 @@ export async function getGuardPerformance(req, res) {
     
     const performance = guards.map(guard => {
       const guardScans = scans.filter(s => s.guardId === guard.id)
-      const scansToday = guardScans.filter(s => new Date(s.scannedAt) >= startOfToday)
+      const guardSuccessfulScans = guardScans.filter(s => s.result !== 'failed')
+      const scansToday = guardSuccessfulScans.filter(s => new Date(s.scannedAt) >= startOfToday)
       const uniqueCheckpointsToday = [...new Set(scansToday.map(s => s.checkpointId))]
       
       // Get checkpoint names for assigned checkpoints
@@ -101,7 +107,7 @@ export async function getGuardPerformance(req, res) {
         name: guard.name,
         scansToday: scansToday.length,
         uniqueCheckpointsToday: uniqueCheckpointsToday.length,
-        totalScans: guardScans.length,
+        totalScans: guardSuccessfulScans.length,
         lastScan: guardScans.length > 0 
           ? guardScans.sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))[0].scannedAt 
           : null,
@@ -136,6 +142,7 @@ export async function getUpcomingPatrols(req, res) {
           const scannedToday = scans.some(
             s => s.guardId === guard.id && 
                 s.checkpointId === cpId && 
+                s.result !== 'failed' &&
                 new Date(s.scannedAt) >= startOfToday
           )
           
@@ -172,18 +179,20 @@ export async function getCheckpointStatus(req, res) {
     
     const status = checkpoints.map(cp => {
       const checkpointScans = scans.filter(s => s.checkpointId === cp.id)
-      const scansToday = checkpointScans.filter(s => new Date(s.scannedAt) >= oneDayAgo)
-      const uniqueGuardsToday = [...new Set(scansToday.map(s => s.guardId))]
+      const successfulToday = checkpointScans.filter(
+        s => s.result !== 'failed' && new Date(s.scannedAt) >= oneDayAgo
+      )
+      const uniqueGuardsToday = [...new Set(successfulToday.map(s => s.guardId))]
       
       return {
         id: cp.id,
         name: cp.name,
-        scansToday: scansToday.length,
+        scansToday: successfulToday.length,
         uniqueGuardsToday: uniqueGuardsToday.length,
         lastScan: checkpointScans.length > 0 
           ? checkpointScans.sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))[0].scannedAt 
           : null,
-        status: scansToday.length > 0 ? 'active' : 'inactive'
+        status: successfulToday.length > 0 ? 'active' : 'inactive'
       }
     })
     

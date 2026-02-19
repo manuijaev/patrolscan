@@ -362,8 +362,11 @@ export default function ScanQR() {
           
           // Check if guard is designated for this checkpoint
           isDesignated = res.data.designated === true
-          
-          if (isDesignated) {
+
+          const result = res.data.result || 'passed'
+          const failureReason = res.data.failureReason
+
+          if (result === 'passed' && isDesignated) {
             // Auto-unassign checkpoint from guard after successful scan
             try {
               await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
@@ -373,6 +376,21 @@ export default function ScanQR() {
             } catch (unassignErr) {
               console.error('Failed to unassign checkpoint:', unassignErr)
             }
+            completeScan(true, checkpointId, checkpointName)
+          } else {
+            // Failed due to GPS / distance / accuracy
+            const reason =
+              failureReason ||
+              'Scan did not meet location/accuracy requirements. Please move closer and try again.'
+            setShowTick(false)
+            setShowCross(true)
+            setScanState('cooldown')
+            toast.error(reason)
+            // Short cooldown for failed scans
+            localStorage.setItem('scanResult', 'failed')
+            localStorage.setItem('scanTimestamp', Date.now().toString())
+            startCooldown(FAIL_COOLDOWN_MS)
+            return
           }
         } catch (err) {
           // Check if error is "not designated"
@@ -398,9 +416,7 @@ export default function ScanQR() {
         safetyTimeoutRef.current = null
       }
 
-      if (isDesignated) {
-        completeScan(true, checkpointId, checkpointName)
-      } else {
+      if (!isDesignated) {
         // Not designated - show failed, no cooldown, no report sent
         clearTimeout(safetyTimeoutRef.current)
         setShowTick(false)
