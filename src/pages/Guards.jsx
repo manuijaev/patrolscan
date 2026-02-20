@@ -49,6 +49,13 @@ export default function Guards() {
   useEffect(() => {
     loadGuards()
     loadCheckpoints()
+    
+    // Auto-refresh every 10 seconds to keep data up to date
+    const interval = setInterval(() => {
+      loadGuards()
+    }, 10000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   async function handleCreate(e) {
@@ -142,6 +149,8 @@ export default function Guards() {
       toast.success('Checkpoint assigned successfully')
       setAssigningId(null)
       setSelectedCheckpoints([])
+      // Small delay to ensure backend saves data
+      await new Promise(resolve => setTimeout(resolve, 100))
       await loadGuards()
     } catch (err) {
       console.error('Failed to assign checkpoints', err)
