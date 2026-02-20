@@ -93,6 +93,11 @@ export function assignCheckpointsController(req, res) {
     return res.status(400).json({ message: 'checkpointIds must be an array' })
   }
 
+  // Validate: at least one checkpoint must be selected
+  if (checkpointIds.length === 0) {
+    return res.status(400).json({ message: 'Please select at least one checkpoint to assign' })
+  }
+
   const success = assignCheckpoints(Number(id), checkpointIds)
 
   if (!success) {

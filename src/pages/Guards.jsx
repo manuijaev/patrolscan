@@ -148,6 +148,12 @@ export default function Guards() {
   }
 
   async function saveAssignment(guardId) {
+    // Validate: at least one checkpoint must be selected
+    if (selectedCheckpoints.length === 0) {
+      toast.error('Please select at least one checkpoint to assign')
+      return
+    }
+    
     setLoading(true)
     try {
       await api.put(
@@ -363,7 +369,7 @@ export default function Guards() {
                       </button>
                     </div>
                     
-                    {/* Re-assign button for completed checkpoints */}
+                    {/* Re-assign button */}
                     {completedCheckpoints[guard.id]?.length > 0 && (
                       <button
                         onClick={() => handleReassign(guard.id)}
@@ -412,7 +418,7 @@ export default function Guards() {
                     <div className="flex gap-2 mt-4">
                       <button
                         onClick={() => saveAssignment(guard.id)}
-                        disabled={loading}
+                        disabled={loading || selectedCheckpoints.length === 0}
                         className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium disabled:opacity-50 flex items-center justify-center gap-1"
                       >
                         <IconCheck size={16} />

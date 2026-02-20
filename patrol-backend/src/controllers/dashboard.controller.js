@@ -161,6 +161,8 @@ export async function getUpcomingPatrols(req, res) {
           completedToday: assigned.filter(a => a.status === 'completed').length
         }
       })
+      // Filter out patrols where all checkpoints are completed
+      .filter(patrol => patrol.completedToday < patrol.totalAssigned)
     
     res.json(upcomingPatrols)
   } catch (error) {
