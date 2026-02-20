@@ -19,6 +19,7 @@ export default function UpcomingPatrols() {
   const [guards, setGuards] = useState([])
   const [checkpoints, setCheckpoints] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [selectedGuard, setSelectedGuard] = useState(null)
   const [selectedCheckpoint, setSelectedCheckpoint] = useState(null)
@@ -41,12 +42,18 @@ export default function UpcomingPatrols() {
         headers: { Authorization: `Bearer ${token}` }
       })
       setGuards(guardRes.data)
+      console.log('Guards loaded:', guardRes.data)
       
       // Load checkpoints
       const cpRes = await api.get('/checkpoints')
       setCheckpoints(cpRes.data)
+      console.log('Checkpoints loaded:', cpRes.data)
     } catch (err) {
       console.error('Failed to load data', err)
+      setError(err.message)
+      if (err.response) {
+        console.error('Response:', err.response.data)
+      }
     } finally {
       setLoading(false)
     }
@@ -179,6 +186,17 @@ export default function UpcomingPatrols() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Error: {error}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">
+          Retry
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <Toaster 
@@ -202,7 +220,8 @@ export default function UpcomingPatrols() {
         </div>
         <button
           onClick={() => setShowAssignModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent-strong)] transition font-medium"
+          disabled={guards.length === 0 || checkpoints.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50"
         >
           <IconPlus size={18} />
           Assign Checkpoint
@@ -218,7 +237,14 @@ export default function UpcomingPatrols() {
           </span>
         </div>
 
-        {patrols.length === 0 ? (
+        {guards.length === 0 || checkpoints.length === 0 ? (
+          <div className="text-center py-8 text-[color:var(--text-muted)]">
+            <IconMapPin size={48} className="mx-auto mb-2 opacity-50" />
+            <p>Cannot create patrol assignments.</p>
+            {guards.length === 0 && <p className="text-sm">Please create guards first in the Guards tab.</p>}
+            {checkpoints.length === 0 && <p className="text-sm">Please create checkpoints first in the Checkpoints tab.</p>}
+          </div>
+        ) : patrols.length === 0 ? (
           <div className="text-center py-8 text-[color:var(--text-muted)]">
             <IconMapPin size={48} className="mx-auto mb-2 opacity-50" />
             <p>No patrol assignments yet.</p>
@@ -338,6 +364,9 @@ export default function UpcomingPatrols() {
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
+                {guards.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No guards registered. Create guards first in the Guards tab.</p>
+                )}
               </div>
 
               <div>
@@ -352,7 +381,9 @@ export default function UpcomingPatrols() {
                     <option key={cp.id} value={cp.id}>{cp.name} - {cp.location || 'No location'}</option>
                   ))}
                 </select>
-                {getUnassignedCheckpoints().length === 0 && (
+                {getUnassignedCheckpoints().length === 0 && checkpoints.length === 0 ? (
+                  <p className="text-xs text-amber-600 mt-1">No checkpoints available. Create checkpoints first.</p>
+                ) : getUnassignedCheckpoints().length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">All checkpoints are assigned</p>
                 )}
               </div>
