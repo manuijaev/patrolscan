@@ -560,11 +560,10 @@ export default function ScanQR() {
         toast.success(`Checked in at ${checkpointName}`)
         // Save to localStorage for persistence
         saveScanToLocalStorage({
-          checkpointId,
-          checkpointName,
+          id: checkpointId,
+          name: checkpointName,
           success: true,
-          timestamp: new Date().toISOString(),
-          scannedAt: new Date().toLocaleTimeString()
+          timestamp: new Date().toISOString()
         })
       }
       
@@ -583,11 +582,10 @@ export default function ScanQR() {
       // Don't show toast here - it's already shown in the error handlers
       // Save to localStorage for persistence
       saveScanToLocalStorage({
-        checkpointId,
-        checkpointName,
+        id: checkpointId,
+        name: checkpointName,
         success: false,
-        timestamp: new Date().toISOString(),
-        scannedAt: new Date().toLocaleTimeString()
+        timestamp: new Date().toISOString()
       })
       localStorage.setItem('scanResult', 'failed')
       localStorage.setItem('scanTimestamp', Date.now().toString())
@@ -631,6 +629,34 @@ export default function ScanQR() {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     } catch {
       return '--:--'
+    }
+  }
+
+  // Format date with relative labels
+  function formatDateWithLabel(isoString) {
+    try {
+      const date = new Date(isoString)
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const lastMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+      
+      const scanDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      
+      if (scanDate.getTime() === today.getTime()) {
+        return `Today, ${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`
+      } else if (scanDate.getTime() === yesterday.getTime()) {
+        return `Yesterday, ${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`
+      } else if (scanDate >= lastWeek) {
+        return `This Week, ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+      } else if (scanDate >= lastMonth) {
+        return `This Month, ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+      } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+      }
+    } catch {
+      return ''
     }
   }
 
@@ -966,12 +992,12 @@ export default function ScanQR() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 dark:text-white truncate">
-                              {scan.checkpointName || 'Unknown Checkpoint'}
+                              {scan.name || scan.checkpointName || 'Unknown Checkpoint'}
                             </p>
                             <div className="flex items-center gap-3 mt-2">
                               <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                                 <IconClock size={14} />
-                                <span>{scan.scannedAt || formatTime(scan.timestamp)}</span>
+                                <span>{formatDateWithLabel(scan.timestamp)}</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${
                                 scan.success 
@@ -1020,7 +1046,7 @@ export default function ScanQR() {
 
                 {lastScans.length > 0 ? (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {lastScans.slice(0, 3).map((scan) => (
+                    {lastScans.slice(0, 2).map((scan) => (
                       <div
                         key={scan.id || scan.timestamp}
                         className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -1039,12 +1065,12 @@ export default function ScanQR() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 dark:text-white truncate">
-                              {scan.checkpointName || 'Unknown Checkpoint'}
+                              {scan.name || scan.checkpointName || 'Unknown Checkpoint'}
                             </p>
                             <div className="flex items-center gap-3 mt-2">
                               <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
                                 <IconClock size={14} />
-                                <span>{scan.scannedAt || formatTime(scan.timestamp)}</span>
+                                <span>{formatDateWithLabel(scan.timestamp)}</span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${
                                 scan.success 
