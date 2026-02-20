@@ -48,7 +48,9 @@ export async function recordScan(req, res) {
     const guards = getGuards()
     const guard = guards.find(g => Number(g.id) === Number(guardId))
     
-    const isDesignated = guard && guard.assignedCheckpoints && guard.assignedCheckpoints.includes(checkpointId)
+    // Use loose comparison to handle both string and number formats
+    const isDesignated = guard && guard.assignedCheckpoints && 
+      guard.assignedCheckpoints.some(cpId => String(cpId) === String(checkpointId))
     
     // If not designated, return error
     if (!isDesignated) {
