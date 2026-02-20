@@ -8,6 +8,7 @@ import {
   IconUser,
   IconMapPin
 } from '@tabler/icons-react'
+import { Toaster, toast } from 'react-hot-toast'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
@@ -138,11 +139,13 @@ export default function Guards() {
         { checkpointIds: selectedCheckpoints },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
+      toast.success('Checkpoint assigned successfully')
       setAssigningId(null)
       setSelectedCheckpoints([])
       await loadGuards()
     } catch (err) {
       console.error('Failed to assign checkpoints', err)
+      toast.error('Failed to assign checkpoints')
     } finally {
       setLoading(false)
     }
@@ -158,6 +161,17 @@ export default function Guards() {
 
   return (
     <div className="space-y-6">
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: 'var(--panel)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+          },
+        }}
+      />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Guards</h2>
