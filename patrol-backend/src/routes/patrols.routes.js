@@ -2,7 +2,7 @@ import express from 'express'
 import {
   createScan,
   listScans,
-} from '../controllers/patrols.controller.js'
+} from '../controllers/scans.controller.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 
 const router = express.Router()

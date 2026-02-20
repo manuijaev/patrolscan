@@ -1,234 +1,104 @@
-import * as scans from '../data/scans.js'
-import * as checkpoints from '../data/checkpoints.js'
-import { getGuards } from '../data/users.js'
+// Scans controller
+import { getAll as getAllScansData, create as createScanData, getByGuardId, getByCheckpointId, getByDateRange as getByDateRangeData, create, remove as removeScanData } from '../data/scans.js'
 
-function toRad(value) {
-  return (value * Math.PI) / 180
-}
-
-function distanceInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000 // metres
-  const φ1 = toRad(lat1)
-  const φ2 = toRad(lat2)
-  const Δφ = toRad(lat2 - lat1)
-  const Δλ = toRad(lon2 - lon1)
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
-
-// Get all scans
-export const getAll = async (req, res) => {
+// List all scans (admin)
+export async function getAll(req, res) {
   try {
-    const allScans = await scans.getAll()
-    const guards = getGuards()
-    
-    // Enrich with guard and checkpoint data
-    const enrichedScans = await Promise.all(allScans.map(async (scan) => {
-      const guard = guards.find(g => g.id === scan.guardId)
-      const checkpoint = await checkpoints.getById(scan.checkpointId)
-      return {
-        ...scan,
-        guardName: guard ? guard.name : 'Unknown',
-        checkpointName: checkpoint ? checkpoint.name : 'Unknown'
-      }
-    }))
-    
-    res.json(enrichedScans)
+    const scans = await getAllScansData()
+    res.json(scans)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch scans' })
+    res.status(500).json({ error: error.message })
   }
 }
 
-// Get scans by guard (from token)
-export const getByGuard = async (req, res) => {
+// Get scans by guard
+export async function getByGuard(req, res) {
   try {
-    const guardId = req.user.id
-    const guardScans = await scans.getByGuardId(guardId)
-    const guards = getGuards()
-    
-    // Enrich with checkpoint data
-    const enrichedScans = await Promise.all(guardScans.map(async (scan) => {
-      const checkpoint = await checkpoints.getById(scan.checkpointId)
-      return {
-        ...scan,
-        checkpointName: checkpoint ? checkpoint.name : 'Unknown'
-      }
-    }))
-    
-    res.json(enrichedScans)
+    const { guardId } = req.user
+    const scans = await getByGuardId(guardId)
+    res.json(scans)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch guard scans' })
+    res.status(500).json({ error: error.message })
   }
 }
 
 // Get scans by date range
-export const getByDateRange = async (req, res) => {
+export async function getByDateRange(req, res) {
   try {
     const { startDate, endDate } = req.query
-    const filteredScans = await scans.getByDateRange(startDate, endDate)
-    const guards = getGuards()
-    
-    // Enrich with guard and checkpoint data
-    const enrichedScans = await Promise.all(filteredScans.map(async (scan) => {
-      const guard = guards.find(g => g.id === scan.guardId)
-      const checkpoint = await checkpoints.getById(scan.checkpointId)
-      return {
-        ...scan,
-        guardName: guard ? guard.name : 'Unknown',
-        checkpointName: checkpoint ? checkpoint.name : 'Unknown'
-      }
-    }))
-    
-    res.json(enrichedScans)
+    const scans = await getByDateRangeData(startDate, endDate)
+    res.json(scans)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch scans by date range' })
+    res.status(500).json({ error: error.message })
   }
 }
 
-// Record a new scan (called by guards scanning QR codes)
-export const recordScan = async (req, res) => {
+// Record a scan (guard)
+export async function recordScan(req, res) {
   try {
-    const guardId = req.user.id
-    const {
-      checkpointId,
-      checkpointName,
-      latitude,
-      longitude,
-      accuracy,
-      notes,
-      designatedUser
-    } = req.body
+    const { guardId } = req.user
+    const { checkpointId, location, result, failureReason, scannedAt } = req.body
     
-    if (!guardId || !checkpointId) {
-      return res.status(400).json({ error: 'Guard ID and Checkpoint ID are required' })
+    if (!checkpointId) {
+      return res.status(400).json({ message: 'checkpointId is required' })
     }
     
-    // Verify guard exists
-    const guards = getGuards()
-    const guard = guards.find(g => g.id === guardId)
-    if (!guard) {
-      return res.status(404).json({ error: 'Guard not found' })
-    }
-    
-    // Verify checkpoint exists
-    const checkpoint = await checkpoints.getById(checkpointId)
-    if (!checkpoint) {
-      return res.status(404).json({ error: 'Checkpoint not found' })
-    }
-    
-    // Check if guard is designated for this checkpoint (validate designatedUser from QR)
-    // The QR code should contain "designatedUser" field that matches the guard's name
-    let isDesignated = true
-    if (designatedUser) {
-      // Compare case-insensitively
-      isDesignated = designatedUser.toLowerCase().trim() === guard.name.toLowerCase().trim()
-    }
-    
-    if (!isDesignated) {
-      return res.status(403).json({ 
-        error: 'Not designated',
-        message: `This checkpoint is designated for ${designatedUser}. You are ${guard.name}`,
-        designated: false
-      })
-    }
-
-    // Default result values
-    let result = 'passed'
-    let failureReason = null
-    let distanceMeters = null
-    const requiredRadius = typeof checkpoint.allowed_radius === 'number'
-      ? checkpoint.allowed_radius
-      : 1
-
-    // Only enforce GPS rules if checkpoint has coordinates and guard sent location
-    if (
-      typeof checkpoint.latitude === 'number' &&
-      typeof checkpoint.longitude === 'number'
-    ) {
-      const reasons = []
-
-      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-        reasons.push('Guard location missing')
-      } else {
-        distanceMeters = distanceInMeters(
-          latitude,
-          longitude,
-          checkpoint.latitude,
-          checkpoint.longitude
-        )
-
-        const accuracyMeters =
-          typeof accuracy === 'number' && !Number.isNaN(accuracy) && accuracy > 0
-            ? accuracy
-            : 0
-
-        // More forgiving validation:
-        // 1. If distance is already within allowed radius, pass immediately
-        // 2. Otherwise, account for GPS accuracy uncertainty
-        // 3. Pass if (distance - accuracy) <= allowed_radius OR if distance <= (allowed_radius + accuracy)
-        const withinRadius = distanceMeters <= requiredRadius
-        const withinAccuracyBuffer = accuracyMeters > 0 
-          ? distanceMeters <= (requiredRadius + accuracyMeters)
-          : false
-
-        if (!withinRadius && !withinAccuracyBuffer) {
-          const effectiveDistance = Math.max(0, distanceMeters - accuracyMeters)
-          reasons.push(
-            `Distance ${distanceMeters.toFixed(1)}m exceeds allowed radius of ${requiredRadius}m${accuracyMeters > 0 ? ` (GPS accuracy ±${accuracyMeters.toFixed(1)}m)` : ''}`
-          )
-        }
-      }
-
-      if (reasons.length > 0) {
-        result = 'failed'
-        failureReason = reasons.join('; ')
-      }
-    }
-    
-    const newScan = await scans.create({
+    const scan = await createScanData({
       guardId,
       checkpointId,
-      latitude: latitude || null,
-      longitude: longitude || null,
-      notes: notes || '',
-      result,
-      failureReason,
-      distanceMeters,
-      requiredRadius,
-      guardAccuracy: typeof accuracy === 'number' ? accuracy : null,
+      location: location || null,
+      result: result || 'passed',
+      failureReason: failureReason || null,
+      scannedAt: scannedAt || new Date().toISOString()
     })
     
-    res.status(201).json({
-      ...newScan,
-      guardName: guard.name,
-      checkpointName: checkpoint.name || checkpointName || 'Checkpoint',
-      message: result === 'passed'
-        ? 'Scan recorded successfully'
-        : 'Scan recorded but did not meet location/accuracy requirements',
-      designated: true
-    })
+    res.status(201).json(scan)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to record scan' })
+    res.status(500).json({ error: error.message })
   }
 }
 
-// Delete scan
-export const remove = async (req, res) => {
+// Remove a scan
+export async function remove(req, res) {
   try {
-    const deleted = await scans.remove(req.params.id)
+    const { id } = req.params
+    await removeScanData(Number(id))
+    res.json({ message: 'Scan removed' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+// Legacy function for patrols route
+export async function listScans(req, res) {
+  try {
+    const scans = await getAllScansData()
+    res.json(scans)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+// Legacy function for patrols route
+export async function createScan(req, res) {
+  try {
+    const { guardId, checkpointId, location, result, failureReason, scannedAt } = req.body
     
-    if (!deleted) {
-      return res.status(404).json({ error: 'Scan not found' })
+    if (!guardId || !checkpointId) {
+      return res.status(400).json({ message: 'guardId and checkpointId are required' })
     }
     
-    res.json({ message: 'Scan deleted successfully' })
+    const scan = await createScanData({
+      guardId,
+      checkpointId,
+      location: location || null,
+      result: result || 'passed',
+      failureReason: failureReason || null,
+      scannedAt: scannedAt || new Date().toISOString()
+    })
+    
+    res.status(201).json(scan)
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete scan' })
+    res.status(500).json({ error: error.message })
   }
 }
