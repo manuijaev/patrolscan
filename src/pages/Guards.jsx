@@ -6,7 +6,8 @@ import {
   IconX,
   IconCheck,
   IconUser,
-  IconMapPin
+  IconMapPin,
+  IconRefresh
 } from '@tabler/icons-react'
 import { Toaster, toast } from 'react-hot-toast'
 import api from '../api/axios'
@@ -21,6 +22,7 @@ export default function Guards() {
   const [editPin, setEditPin] = useState('')
   const [assigningId, setAssigningId] = useState(null)
   const [selectedCheckpoints, setSelectedCheckpoints] = useState([])
+  const [completedCheckpoints, setCompletedCheckpoints] = useState({}) // Map of guardId -> completed checkpoint IDs
   
   // Create form state
   const [name, setName] = useState('')
@@ -32,6 +34,13 @@ export default function Guards() {
         headers: { Authorization: `Bearer ${getToken()}` },
       })
       setGuards(res.data)
+      
+      // Store completed checkpoints for each guard
+      const completed = {}
+      res.data.forEach(guard => {
+        completed[guard.id] = guard.completedCheckpoints || []
+      })
+      setCompletedCheckpoints(completed)
     } catch (err) {
       console.error('Failed to load guards', err)
     }
@@ -166,6 +175,15 @@ export default function Guards() {
     } else {
       setSelectedCheckpoints([...selectedCheckpoints, cpId])
     }
+  }
+
+  // Re-assign completed checkpoints (add them back to selection)
+  function handleReassign(guardId) {
+    const completed = completedCheckpoints[guardId] || []
+    // Add all completed checkpoints to the selection
+    const newSelection = [...new Set([...selectedCheckpoints, ...completed])]
+    setSelectedCheckpoints(newSelection)
+    toast.success(`Re-assigned ${completed.length} completed checkpoint(s)`)
   }
 
   return (
@@ -345,30 +363,49 @@ export default function Guards() {
                       </button>
                     </div>
                     
+                    {/* Re-assign button for completed checkpoints */}
+                    {completedCheckpoints[guard.id]?.length > 0 && (
+                      <button
+                        onClick={() => handleReassign(guard.id)}
+                        className="w-full mb-3 py-2 px-3 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition flex items-center justify-center gap-1"
+                      >
+                        <IconRefresh size={14} />
+                        Re-assign {completedCheckpoints[guard.id].length} completed checkpoint(s)
+                      </button>
+                    )}
+                    
                     {checkpoints.length === 0 ? (
                       <p className="text-sm text-[color:var(--text-muted)] text-center py-4">
                         No checkpoints available. Create checkpoints first.
                       </p>
                     ) : (
                       <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {checkpoints.map(cp => (
-                          <label
-                            key={cp.id}
-                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition ${
-                              selectedCheckpoints.includes(cp.id)
-                                ? 'bg-blue-100 dark:bg-blue-900/30'
-                                : 'hover:bg-[color:var(--panel)]'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedCheckpoints.includes(cp.id)}
-                              onChange={() => toggleCheckpoint(cp.id)}
-                              className="w-4 h-4 rounded border-[color:var(--border)] text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm">{cp.name}</span>
-                          </label>
-                        ))}
+                        {checkpoints.map(cp => {
+                          const isCompleted = completedCheckpoints[guard.id]?.includes(cp.id)
+                          return (
+                            <label
+                              key={cp.id}
+                              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition ${
+                                selectedCheckpoints.includes(cp.id)
+                                  ? 'bg-blue-100 dark:bg-blue-900/30'
+                                  : 'hover:bg-[color:var(--panel)]'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedCheckpoints.includes(cp.id)}
+                                onChange={() => toggleCheckpoint(cp.id)}
+                                className="w-4 h-4 rounded border-[color:var(--border)] text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm flex-1">{cp.name}</span>
+                              {isCompleted && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                  Done
+                                </span>
+                              )}
+                            </label>
+                          )
+                        })}
                       </div>
                     )}
                     

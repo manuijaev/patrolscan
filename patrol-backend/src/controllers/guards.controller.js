@@ -1,13 +1,34 @@
 import { getGuards, addGuard, updateGuard, deleteGuard, assignCheckpoints, getGuardsWithCheckpoints, unassignCheckpoint } from '../data/users.js'
+import { getAll as getAllScans } from '../data/scans.js'
+import { getAll as getAllCheckpoints } from '../data/checkpoints.js'
 
-export function listGuards(req, res) {
-  const safeGuards = getGuardsWithCheckpoints().map(g => ({
-    id: g.id,
-    name: g.name,
-    role: g.role,
-    assignedCheckpoints: g.assignedCheckpoints || [],
-  }))
-  res.json(safeGuards)
+export async function listGuards(req, res) {
+  const guards = getGuardsWithCheckpoints()
+  const scans = await getAllScans()
+  const checkpoints = await getAllCheckpoints()
+  
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  // Get checkpoints completed today for each guard
+  const guardsWithStatus = guards.map(g => {
+    const guardScans = scans.filter(s => 
+      s.guardId === g.id && 
+      new Date(s.scannedAt) >= startOfToday &&
+      s.result !== 'failed'
+    )
+    const completedCheckpointIds = [...new Set(guardScans.map(s => s.checkpointId))]
+    
+    return {
+      id: g.id,
+      name: g.name,
+      role: g.role,
+      assignedCheckpoints: g.assignedCheckpoints || [],
+      completedCheckpoints: completedCheckpointIds,
+    }
+  })
+  
+  res.json(guardsWithStatus)
 }
 
 export function createGuard(req, res) {
