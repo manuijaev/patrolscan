@@ -6,7 +6,7 @@ const PWA_CONFIG = {
     name: 'Patrolscan Admin',
     shortName: 'Patrolscan admin',
     themeColor: '#7c3aed',
-    description: 'Install the Admin Portal on your home screen for quick access.',
+    description: 'Install the Patrolscan Portal on your home screen for quick access.',
     icon: '/patrolscanimg.png',
     storageKey: 'adminPwaPromptDismissed'
   },
