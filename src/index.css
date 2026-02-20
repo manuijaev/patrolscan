@@ -140,3 +140,45 @@ body {
 .dark .bg-blue-500 {
   background-color: #3b82f6 !important;
 }
+
+/* Network Status and Location card backgrounds in dark mode */
+.dark .bg-green-50 {
+  background-color: rgba(22, 101, 52, 0.15) !important;
+}
+
+.dark .bg-green-100 {
+  background-color: rgba(22, 101, 52, 0.25) !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: rgba(161, 98, 7, 0.15) !important;
+}
+
+.dark .bg-yellow-100 {
+  background-color: rgba(161, 98, 7, 0.25) !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(29, 78, 216, 0.15) !important;
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(29, 78, 216, 0.25) !important;
+}
+
+/* Text colors with CSS variables - force override */
+.theme-text {
+  color: var(--color-text) !important;
+}
+
+.theme-text-muted {
+  color: var(--color-text-muted) !important;
+}
+
+.dark .theme-text {
+  color: var(--color-text-dark) !important;
+}
+
+.dark .theme-text-muted {
+  color: var(--color-text-muted-dark) !important;
+}

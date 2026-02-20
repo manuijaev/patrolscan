@@ -17,7 +17,9 @@ import {
   IconShieldCheck,
   IconX,
   IconMoon,
-  IconSun
+  IconSun,
+  IconArrowLeft,
+  IconEye
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
@@ -31,6 +33,7 @@ export default function ScanQR() {
   const qrRef = useRef(null)
   const scannerRef = useRef(null)
   const [lastScans, setLastScans] = useState([])
+  const [showPatrolHistory, setShowPatrolHistory] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [cameraError, setCameraError] = useState(false)
@@ -52,6 +55,8 @@ export default function ScanQR() {
   const processingTimeoutRef = useRef(null)
   const safetyTimeoutRef = useRef(null)
   const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
+  const scanCompletedRef = useRef(false) // Prevent duplicate completeScan calls
+  const wasOnlineRef = useRef(true) // Track previous online status to prevent duplicate toasts
   const [activeCooldownCheckpoint, setActiveCooldownCheckpoint] = useState(null) // Track which checkpoint is in cooldown
   const isFirstMount = useRef(true)
 
@@ -77,7 +82,6 @@ export default function ScanQR() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
-      toast.success('Back online')
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -171,15 +175,53 @@ export default function ScanQR() {
   }
 
   async function loadRecentScans() {
+    // First try to load from localStorage for persistence when logged out
+    const storedScans = localStorage.getItem('recentScans')
+    let localScans = []
+    if (storedScans) {
+      try {
+        localScans = JSON.parse(storedScans)
+      } catch (e) {
+        console.error('Failed to parse stored scans', e)
+      }
+    }
+    
     try {
       const token = getToken()
       const res = await api.get('/scans/my-scans', {
         headers: { Authorization: `Bearer ${token}` },
       })
-      setLastScans(res.data.slice(0, 5))
+      // Merge API scans with local scans, remove duplicates
+      const apiScans = res.data || []
+      const allScans = [...apiScans, ...localScans]
+      // Remove duplicates based on timestamp
+      const uniqueScans = allScans.filter((scan, index, self) => 
+        index === self.findIndex((s) => s.timestamp === scan.timestamp)
+      )
+      setLastScans(uniqueScans.slice(0, 5))
     } catch (err) {
       console.error('Failed to load scans', err)
+      // Fall back to localStorage only
+      setLastScans(localScans.slice(0, 5))
     }
+  }
+
+  // Save scan to localStorage for persistence
+  function saveScanToLocalStorage(scan) {
+    const storedScans = localStorage.getItem('recentScans')
+    let scans = []
+    if (storedScans) {
+      try {
+        scans = JSON.parse(storedScans)
+      } catch (e) {
+        scans = []
+      }
+    }
+    // Add new scan at the beginning
+    scans.unshift(scan)
+    // Keep only last 50 scans
+    scans = scans.slice(0, 50)
+    localStorage.setItem('recentScans', JSON.stringify(scans))
   }
 
   // Stop scanner
@@ -289,26 +331,29 @@ export default function ScanQR() {
 
   // Handle QR scan with 5-second timeout
   const handleScan = async (decodedText) => {
+    // Reset scan completed flag for new scan
+    scanCompletedRef.current = false
     setScanState('processing')
 
     // Set safety timeout - automatically resolve after 5 seconds
     safetyTimeoutRef.current = setTimeout(() => {
-      if (scanState === 'processing') {
-        console.log('Processing timeout - auto-resolving')
-        // Determine success/failure based on QR validity
-        try {
-          const qrData = JSON.parse(decodedText)
-          if (qrData.type === 'patrol-checkpoint' && qrData.id) {
-            // Valid QR - show success
-            completeScan(true, qrData.id, qrData.checkpointName || qrData.name)
-          } else {
-            // Invalid QR - show failure
-            completeScan(false)
-          }
-        } catch {
-          // Invalid JSON - show failure
+      // Prevent duplicate calls
+      if (scanCompletedRef.current || scanState !== 'processing') return
+      
+      console.log('Processing timeout - auto-resolving')
+      // Determine success/failure based on QR validity
+      try {
+        const qrData = JSON.parse(decodedText)
+        if (qrData.type === 'patrol-checkpoint' && qrData.id) {
+          // Valid QR - show success
+          completeScan(true, qrData.id, qrData.checkpointName || qrData.name)
+        } else {
+          // Invalid QR - show failure
           completeScan(false)
         }
+      } catch {
+        // Invalid JSON - show failure
+        completeScan(false)
       }
     }, MAX_PROCESSING_TIME)
 
@@ -484,12 +529,17 @@ export default function ScanQR() {
         clearTimeout(safetyTimeoutRef.current)
         safetyTimeoutRef.current = null
       }
+      toast.error('Scan failed. Please try again.')
       completeScan(false)
     }
   }
 
   // Complete scan with result
   const completeScan = (success, checkpointId = null, checkpointName = 'Checkpoint') => {
+    // Prevent duplicate calls
+    if (scanCompletedRef.current) return
+    scanCompletedRef.current = true
+    
     // Clear any processing timeout
     if (processingTimeoutRef.current) {
       clearTimeout(processingTimeoutRef.current)
@@ -508,6 +558,14 @@ export default function ScanQR() {
         toast.error(checkpointName)
       } else {
         toast.success(`Checked in at ${checkpointName}`)
+        // Save to localStorage for persistence
+        saveScanToLocalStorage({
+          checkpointId,
+          checkpointName,
+          success: true,
+          timestamp: new Date().toISOString(),
+          scannedAt: new Date().toLocaleTimeString()
+        })
       }
       
       if ('vibrate' in navigator) {
@@ -522,7 +580,15 @@ export default function ScanQR() {
       setShowTick(false)
       setShowCross(true)
       setScanState('cooldown') // Don't restart scanner automatically after cooldown
-      toast.error(checkpointName === 'Not Assigned' ? 'Not assigned to this checkpoint' : 'Scan failed. Please try again.')
+      // Don't show toast here - it's already shown in the error handlers
+      // Save to localStorage for persistence
+      saveScanToLocalStorage({
+        checkpointId,
+        checkpointName,
+        success: false,
+        timestamp: new Date().toISOString(),
+        scannedAt: new Date().toLocaleTimeString()
+      })
       localStorage.setItem('scanResult', 'failed')
       localStorage.setItem('scanTimestamp', Date.now().toString())
       startCooldown(FAIL_COOLDOWN_MS) // 10 seconds for failure
@@ -588,12 +654,12 @@ export default function ScanQR() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">QR Scanner</h1>
             <div className="flex items-center gap-3 mt-1">
-              <p className="text-sm" style={{ color: '#14142a' }}>
+              <p className="text-sm theme-text">
                 Welcome, {user?.name || 'Guard'}
               </p>
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                <span className="text-xs" style={{ color: '#14142a' }}>
+                <span className="text-xs theme-text">
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
@@ -825,8 +891,8 @@ export default function ScanQR() {
                     )}
                   </div>
                   <div>
-                    <p className="font-medium" style={{ color: '#14142a' }}>Network Status</p>
-                    <p className="text-sm" style={{ color: isOnline ? '#14142a' : '#14142a' }}>
+                    <p className="font-medium theme-text">Network Status</p>
+                    <p className="text-sm theme-text-muted">
                       {isOnline ? 'Connected' : 'Offline - saving locally'}
                     </p>
                   </div>
@@ -851,8 +917,8 @@ export default function ScanQR() {
                     } />
                   </div>
                   <div>
-                    <p className="font-medium" style={{ color: '#14142a' }}>Location</p>
-                    <p className="text-sm" style={{ color: '#14142a' }}>
+                    <p className="font-medium theme-text">Location</p>
+                    <p className="text-sm theme-text-muted">
                       {userLocation ? 'GPS active' : 'Location not available'}
                     </p>
                   </div>
@@ -863,60 +929,154 @@ export default function ScanQR() {
 
           {/* Recent Scans Panel */}
           <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
-                Recent Scans
-              </h2>
+            {showPatrolHistory ? (
+              // Patrol History View
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <button 
+                    onClick={() => setShowPatrolHistory(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    <IconArrowLeft size={24} className="text-gray-600 dark:text-gray-400" />
+                  </button>
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
+                    Patrol History
+                  </h2>
+                </div>
 
-              {lastScans.length > 0 ? (
-                <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {lastScans.map((scan) => (
-                    <div
-                      key={scan.id || scan.timestamp}
-                      className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0 mt-1">
-                          <IconCheck size={20} className="text-green-600 dark:text-green-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 dark:text-white truncate">
-                            {scan.checkpointName || 'Unknown Checkpoint'}
-                          </p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                              <IconClock size={14} />
-                              <span>{formatTime(scan.scannedAt || scan.timestamp)}</span>
-                            </div>
-                            {scan.location && (
-                              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                                <IconMapPin size={14} />
-                                <span className="truncate">{scan.location}</span>
-                              </div>
+                {lastScans.length > 0 ? (
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                    {lastScans.map((scan) => (
+                      <div
+                        key={scan.id || scan.timestamp}
+                        className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
+                            scan.success 
+                              ? 'bg-green-100 dark:bg-green-900/30' 
+                              : 'bg-red-100 dark:bg-red-900/30'
+                          }`}>
+                            {scan.success ? (
+                              <IconCheck size={20} className="text-green-600 dark:text-green-400" />
+                            ) : (
+                              <IconX size={20} className="text-red-600 dark:text-red-400" />
                             )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                              {scan.checkpointName || 'Unknown Checkpoint'}
+                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                                <IconClock size={14} />
+                                <span>{scan.scannedAt || formatTime(scan.timestamp)}</span>
+                              </div>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                scan.success 
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              }`}>
+                                {scan.success ? 'Passed' : 'Failed'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                    <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
+                    ))}
                   </div>
-                  <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    No scans yet
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Start scanning checkpoint QR codes
-                  </p>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                      <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
+                    </div>
+                    <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      No patrol history
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Your scan history will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Recent Scans Preview
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
+                    Recent Scans
+                  </h2>
+                  {lastScans.length > 0 && (
+                    <button 
+                      onClick={() => setShowPatrolHistory(true)}
+                      className="text-sm text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+                    >
+                      View All <IconEye size={16} />
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Quick Stats */}
+                {lastScans.length > 0 ? (
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {lastScans.slice(0, 3).map((scan) => (
+                      <div
+                        key={scan.id || scan.timestamp}
+                        className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
+                            scan.success 
+                              ? 'bg-green-100 dark:bg-green-900/30' 
+                              : 'bg-red-100 dark:bg-red-900/30'
+                          }`}>
+                            {scan.success ? (
+                              <IconCheck size={20} className="text-green-600 dark:text-green-400" />
+                            ) : (
+                              <IconX size={20} className="text-red-600 dark:text-red-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                              {scan.checkpointName || 'Unknown Checkpoint'}
+                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                                <IconClock size={14} />
+                                <span>{scan.scannedAt || formatTime(scan.timestamp)}</span>
+                              </div>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                scan.success 
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              }`}>
+                                {scan.success ? 'Passed' : 'Failed'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                      <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
+                    </div>
+                    <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      No scans yet
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Start scanning checkpoint QR codes
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Stats */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4">
               <h3 className="font-medium mb-3">Today's Stats</h3>
               <div className="space-y-3">
@@ -942,46 +1102,6 @@ export default function ScanQR() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes drawCheck {
-          to {
-            stroke-dashoffset: 0;
-          }
-        }
-        
-        @keyframes drawCross {
-          to {
-            stroke-dashoffset: 0;
-          }
-        }
-        
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-        
-        .animate-pulse {
-          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        .animate-ping {
-          animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-        }
-        
-        @keyframes ping {
-          75%, 100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-      `}</style>
     </div>
   )
 }
