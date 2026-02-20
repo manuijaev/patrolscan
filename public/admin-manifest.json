@@ -1,7 +1,7 @@
 {
-  "name": "Patrolscan Admin",
-  "short_name": "Patrolscan admin",
-  "description": "Patrol Management Admin Portal",
+  "name": "Patrolscan",
+  "short_name": "Patrolscan",
+  "description": "Patrol web app",
   "theme_color": "#7c3aed",
   "background_color": "#ffffff",
   "display": "standalone",
