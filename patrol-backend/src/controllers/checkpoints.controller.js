@@ -101,8 +101,8 @@ export const remove = async (req, res) => {
     const guards = getGuards()
     
     for (const guard of guards) {
-      if (guard.assignedCheckpoints && guard.assignedCheckpoints.includes(checkpointId)) {
-        const newAssigned = guard.assignedCheckpoints.filter(id => id !== checkpointId)
+      if (guard.assignedCheckpoints && guard.assignedCheckpoints.some(id => String(id) === String(checkpointId))) {
+        const newAssigned = guard.assignedCheckpoints.filter(id => String(id) !== String(checkpointId))
         assignCheckpoints(guard.id, newAssigned)
       }
     }
