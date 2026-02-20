@@ -464,15 +464,8 @@ export default function ScanQR() {
           const failureReason = res.data.failureReason
 
           if (result === 'passed' && isDesignated) {
-            // Auto-unassign checkpoint from guard after successful scan
-            try {
-              await api.delete(`/guards/${user.id}/unassign-checkpoint/${checkpointId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              console.log('Checkpoint unassigned successfully')
-            } catch (unassignErr) {
-              console.error('Failed to unassign checkpoint:', unassignErr)
-            }
+            // Don't auto-unassign - keep checkpoint assigned so it shows as completed in upcoming patrols
+            // Admin can manually re-assign later if needed
             completeScan(true, checkpointId, checkpointName)
           } else {
             // Failed due to GPS / distance / accuracy

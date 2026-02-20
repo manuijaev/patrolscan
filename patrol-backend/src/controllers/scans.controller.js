@@ -43,6 +43,21 @@ export async function recordScan(req, res) {
       return res.status(400).json({ message: 'checkpointId is required' })
     }
     
+    // Check if guard is designated for this checkpoint (has it assigned)
+    const { getGuards } = await import('../data/users.js')
+    const guards = getGuards()
+    const guard = guards.find(g => Number(g.id) === Number(guardId))
+    
+    const isDesignated = guard && guard.assignedCheckpoints && guard.assignedCheckpoints.includes(checkpointId)
+    
+    // If not designated, return error
+    if (!isDesignated) {
+      return res.status(403).json({ 
+        designated: false,
+        message: 'You are not assigned to this checkpoint'
+      })
+    }
+    
     const scan = await createScanData({
       guardId,
       checkpointId,
@@ -52,7 +67,11 @@ export async function recordScan(req, res) {
       scannedAt: scannedAt || new Date().toISOString()
     })
     
-    res.status(201).json(scan)
+    res.status(201).json({
+      ...scan,
+      designated: true,
+      result: 'passed'
+    })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

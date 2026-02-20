@@ -21,7 +21,7 @@ export async function getPatrolAssignments(req, res) {
           
           // Check if guard has scanned this checkpoint today
           const scannedToday = scans.some(
-            s => s.guardId === guard.id && 
+            s => Number(s.guardId) === Number(guard.id) && 
                 s.checkpointId === cpId && 
                 s.result !== 'failed' &&
                 new Date(s.scannedAt) >= startOfToday
@@ -34,7 +34,7 @@ export async function getPatrolAssignments(req, res) {
             location: checkpoint ? checkpoint.location : '',
             status: scannedToday ? 'completed' : 'pending',
             completedAt: scannedToday ? scans.find(s => 
-              s.guardId === guard.id && 
+              Number(s.guardId) === Number(guard.id) && 
               s.checkpointId === cpId && 
               s.result !== 'failed' &&
               new Date(s.scannedAt) >= startOfToday
@@ -50,8 +50,8 @@ export async function getPatrolAssignments(req, res) {
           completedToday: assigned.filter(a => a.status === 'completed').length
         }
       })
-      // Filter out patrols where all checkpoints are completed
-      .filter(patrol => patrol.completedToday < patrol.totalAssigned)
+      // Don't filter out completed patrols - show them so admins can re-assign if needed
+      // .filter(patrol => patrol.completedToday < patrol.totalAssigned)
     
     res.json(assignments)
   } catch (error) {
