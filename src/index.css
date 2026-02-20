@@ -53,6 +53,7 @@ body,
   --shadow: var(--shadow);
 }
 
+/* Dark mode - applied when .dark class is on html element */
 .dark {
   color-scheme: dark;
   --bg: var(--color-bg-dark);
@@ -68,15 +69,74 @@ body,
   --shadow: var(--shadow-dark);
 }
 
-/* Dashboard dark mode card override - targets any element with dark:bg-gray-900 */
-.dark [class*="dark:bg-gray-900"],
-.dark [class*="dark:bg-gray-800"] {
-  background-color: #0b1220 !important;
-  border-color: #1f2a3a !important;
-}
-
 body {
-  background: var(--bg);
+  background-color: var(--bg) !important;
   color: var(--text);
   font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Force background colors for dark mode - comprehensive override */
+.dark {
+  background-color: var(--color-bg-dark);
+}
+
+/* Dashboard and card backgrounds in dark mode */
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: var(--color-panel-dark) !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: var(--color-border-dark) !important;
+}
+
+/* Text colors in dark mode */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: var(--color-text-dark) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: var(--color-text-muted-dark) !important;
+}
+
+/* Card and panel elements */
+.dark [class*="bg-white"],
+.dark [class*="bg-gray-50"],
+.dark [class*="bg-gray-100"],
+.dark [class*="bg-gray-200"] {
+  background-color: var(--color-panel-dark) !important;
+}
+
+/* Border colors */
+.dark [class*="border-gray-200"],
+.dark [class*="border-gray-300"] {
+  border-color: var(--color-border-dark) !important;
+}
+
+/* Scanner page specific fixes */
+.dark .min-h-screen {
+  background-color: var(--color-bg-dark) !important;
+}
+
+/* Status indicators */
+.dark .bg-green-500 {
+  background-color: #22c55e !important;
+}
+
+.dark .bg-yellow-500 {
+  background-color: #eab308 !important;
+}
+
+.dark .bg-red-500 {
+  background-color: #ef4444 !important;
+}
+
+.dark .bg-blue-500 {
+  background-color: #3b82f6 !important;
 }

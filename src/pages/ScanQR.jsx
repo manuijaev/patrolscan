@@ -15,7 +15,9 @@ import {
   IconLocation,
   IconCameraOff,
   IconShieldCheck,
-  IconX
+  IconX,
+  IconMoon,
+  IconSun
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
@@ -38,6 +40,13 @@ export default function ScanQR() {
   const [showTick, setShowTick] = useState(false)
   const [showCross, setShowCross] = useState(false)
 
+  // Theme state
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored) return stored === 'dark'
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  })
+
   const user = getUser()
   const cooldownTimerRef = useRef(null)
   const processingTimeoutRef = useRef(null)
@@ -45,6 +54,24 @@ export default function ScanQR() {
   const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
   const [activeCooldownCheckpoint, setActiveCooldownCheckpoint] = useState(null) // Track which checkpoint is in cooldown
   const isFirstMount = useRef(true)
+
+  // Theme toggle effect
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
+
+  // Apply theme on initial load
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else if (stored === 'light') {
+      document.documentElement.classList.remove('dark')
+    } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark')
+    }
+  }, [])
 
   // Network status
   useEffect(() => {
@@ -556,17 +583,17 @@ export default function ScanQR() {
       />
 
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 px-4 py-4">
+      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 px-4 py-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">QR Scanner</h1>
             <div className="flex items-center gap-3 mt-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm" style={{ color: '#14142a' }}>
                 Welcome, {user?.name || 'Guard'}
               </p>
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                <span className="text-xs text-gray-500">
+                <span className="text-xs" style={{ color: '#14142a' }}>
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
@@ -574,6 +601,17 @@ export default function ScanQR() {
           </div>
           
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-lg transition-colors ${
+                darkMode 
+                  ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400' 
+                  : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
+              }`}
+              aria-label="Toggle theme"
+            >
+              {darkMode ? <IconSun size={20} /> : <IconMoon size={20} />}
+            </button>
             <button
               onClick={restartScanner}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -787,12 +825,8 @@ export default function ScanQR() {
                     )}
                   </div>
                   <div>
-                    <p className="font-medium">Network Status</p>
-                    <p className={`text-sm ${
-                      isOnline 
-                        ? 'text-green-700 dark:text-green-400'
-                        : 'text-yellow-700 dark:text-yellow-400'
-                    }`}>
+                    <p className="font-medium" style={{ color: '#14142a' }}>Network Status</p>
+                    <p className="text-sm" style={{ color: isOnline ? '#14142a' : '#14142a' }}>
                       {isOnline ? 'Connected' : 'Offline - saving locally'}
                     </p>
                   </div>
@@ -817,12 +851,8 @@ export default function ScanQR() {
                     } />
                   </div>
                   <div>
-                    <p className="font-medium">Location</p>
-                    <p className={`text-sm ${
-                      userLocation 
-                        ? 'text-blue-700 dark:text-blue-400'
-                        : 'text-gray-500 dark:text-gray-400'
-                    }`}>
+                    <p className="font-medium" style={{ color: '#14142a' }}>Location</p>
+                    <p className="text-sm" style={{ color: '#14142a' }}>
                       {userLocation ? 'GPS active' : 'Location not available'}
                     </p>
                   </div>

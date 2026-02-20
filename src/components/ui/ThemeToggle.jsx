@@ -13,10 +13,23 @@ export default function ThemeToggle() {
     return prefersDark
   })
 
+  // Apply theme on mount and when dark changes
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
     localStorage.setItem('theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  // Apply theme on initial load
+  useEffect(() => {
+    const stored = localStorage.getItem('theme')
+    if (stored === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else if (stored === 'light') {
+      document.documentElement.classList.remove('dark')
+    } else if (prefersDark) {
+      document.documentElement.classList.add('dark')
+    }
+  }, [prefersDark])
 
   return (
     <button
@@ -28,7 +41,7 @@ export default function ThemeToggle() {
       className="p-2 rounded-lg hover:bg-[color:var(--bg-muted)] transition"
       aria-label="Toggle theme"
     >
-      {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
+      {dark ? <IconSun size={18} className="text-yellow-400" /> : <IconMoon size={18} className="text-blue-600" />}
     </button>
   )
 }
