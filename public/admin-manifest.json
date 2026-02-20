@@ -1,0 +1,56 @@
+{
+  "name": "Patrolscan Admin",
+  "short_name": "Patrolscan admin",
+  "description": "Patrol Management Admin Portal",
+  "theme_color": "#7c3aed",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/admin-login",
+  "id": "/admin",
+  "categories": ["business", "productivity", "security"],
+  "icons": [
+    {
+      "src": "patrolscanimg.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "patrolscanimg.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "patrolscanimg.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View admin dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "patrolscanimg.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Guards",
+      "short_name": "Guards",
+      "description": "Manage guards",
+      "url": "/guards",
+      "icons": [{ "src": "patrolscanimg.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Checkpoints",
+      "short_name": "Checkpoints",
+      "description": "Manage checkpoints",
+      "url": "/checkpoints",
+      "icons": [{ "src": "patrolscanimg.png", "sizes": "192x192" }]
+    }
+  ]
+}

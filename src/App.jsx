@@ -12,6 +12,8 @@ import AdminLogin from './auth/AdminLogin'
 import GuardLogin from './auth/GuardLogin'
 import RequireAuth from './auth/RequireAuth'
 import { getUser } from './auth/authStore'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
+import DynamicManifest from './components/DynamicManifest'
 
 function GuardLoginPage() {
   const user = getUser()
@@ -32,7 +34,9 @@ function GuardLoginPage() {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <DynamicManifest />
+      <Routes>
       {/* Public */}
       <Route path="/" element={<Navigate to="/guard-login" replace />} />
       <Route path="/admin-login" element={<AdminLogin />} />
@@ -64,6 +68,8 @@ export default function App() {
           </RequireAuth>
         }
       />
-    </Routes>
+      </Routes>
+      <PWAInstallPrompt />
+    </>
   )
 }

@@ -8,9 +8,31 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="PatrolScan">
     <link rel="apple-touch-icon" href="/patrolscanimg.png">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#2563eb">
+    <link rel="manifest" href="/guard-manifest.json" id="pwa-manifest">
+    <meta name="theme-color" content="#2563eb" id="theme-color">
     <title>Patrol Scan</title>
+    <script>
+      // Dynamic manifest loader based on URL path
+      (function() {
+        const path = window.location.pathname;
+        const manifestEl = document.getElementById('pwa-manifest');
+        const themeEl = document.getElementById('theme-color');
+        const titleEl = document.querySelector('title');
+        const appleTitleEl = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        
+        if (path.includes('admin')) {
+          manifestEl.setAttribute('href', '/admin-manifest.json');
+          themeEl.setAttribute('content', '#7c3aed');
+          titleEl.textContent = 'Patrolscan Admin';
+          appleTitleEl.setAttribute('content', 'Patrolscan admin');
+        } else {
+          manifestEl.setAttribute('href', '/guard-manifest.json');
+          themeEl.setAttribute('content', '#2563eb');
+          titleEl.textContent = 'Patrol Scan';
+          appleTitleEl.setAttribute('content', 'PatrolScan');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
