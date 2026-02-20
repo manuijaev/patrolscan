@@ -52,8 +52,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData()
-    // Refresh data every 30 seconds
-    const interval = setInterval(loadDashboardData, 30000)
+    // Refresh data every 5 seconds for real-time updates
+    const interval = setInterval(loadDashboardData, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -90,7 +90,7 @@ export default function Dashboard() {
       setRiskScoring(guardRes.data)
       
       // Load checkpoint status (use for upcoming patrols section)
-      const patrolRes = await api.get('/dashboard/upcoming-patrols', {
+      const patrolRes = await api.get('/patrol-assignments', {
         headers: { Authorization: `Bearer ${token}` }
       })
       setUpcomingShifts(patrolRes.data)

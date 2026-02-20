@@ -6,6 +6,7 @@ import patrolsRoutes from './routes/patrols.routes.js'
 import checkpointsRoutes from './routes/checkpoints.routes.js'
 import scansRoutes from './routes/scans.routes.js'
 import dashboardRoutes from './routes/dashboard.routes.js'
+import patrolAssignmentsRoutes from './routes/patrol-assignments.routes.js'
 
 const app = express()
 
@@ -22,5 +23,6 @@ app.use('/api/patrols', patrolsRoutes)
 app.use('/api/checkpoints', checkpointsRoutes)
 app.use('/api/scans', scansRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/patrol-assignments', patrolAssignmentsRoutes)
 
 export default app

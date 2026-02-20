@@ -7,12 +7,14 @@ import {
   IconReportAnalytics,
   IconShieldCheck,
   IconLogout,
-  IconX
+  IconX,
+  IconCalendarTime
 } from '@tabler/icons-react'
 import { logout } from '../../auth/authStore'
 
 const menu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
+  { name: 'Upcoming Patrols', path: '/upcoming-patrols', icon: IconCalendarTime },
   { name: 'Guards', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },

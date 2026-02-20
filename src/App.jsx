@@ -7,6 +7,7 @@ import Guards from './pages/Guards'
 import Checkpoints from './pages/Checkpoints'
 import Reports from './pages/Reports'
 import ScanQR from './pages/ScanQR'
+import UpcomingPatrols from './pages/UpcomingPatrols'
 
 import AdminLogin from './auth/AdminLogin'
 import GuardLogin from './auth/GuardLogin'
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="guards" element={<Guards />} />
         <Route path="checkpoints" element={<Checkpoints />} />
         <Route path="patrols" element={<Patrols />} />
+        <Route path="upcoming-patrols" element={<UpcomingPatrols />} />
         <Route path="reports" element={<Reports />} />
       </Route>
 
