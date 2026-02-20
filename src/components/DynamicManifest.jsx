@@ -16,6 +16,34 @@ const MANIFEST_CONFIG = {
   }
 }
 
+// Check if running as installed PWA and redirect to browser if needed
+const checkPwaRedirect = (pathname) => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  
+  if (!isStandalone) return false
+  
+  // Get the current PWA type from the manifest ID
+  const manifestLink = document.querySelector('link[rel="manifest"]')
+  const currentManifest = manifestLink?.getAttribute('href') || ''
+  
+  // If we're on admin PWA but trying to access guard routes
+  if (currentManifest.includes('admin') && 
+      (pathname.includes('guard') || pathname.includes('scan'))) {
+    // Open guard login in browser with flag to force browser mode
+    window.location.href = '/guard-login?browser=true'
+    return true
+  }
+  
+  // If we're on guard PWA but trying to access admin routes
+  if (currentManifest.includes('guard') && pathname.includes('admin')) {
+    // Open admin login in browser with flag to force browser mode
+    window.location.href = '/admin-login?browser=true'
+    return true
+  }
+  
+  return false
+}
+
 export default function DynamicManifest() {
   const location = useLocation()
 
@@ -49,6 +77,9 @@ export default function DynamicManifest() {
 
     // Update document title
     document.title = config.title
+
+    // Check if we need to redirect to browser for the other PWA
+    checkPwaRedirect(path)
 
   }, [location.pathname])
 

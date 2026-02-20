@@ -60,7 +60,18 @@ export default function AdminLogin() {
       title="Admin Portal"
       subtitle="Secure access for administrators"
       icon={<IconShield size={24} />}
-      footer="Need access? Contact your system administrator"
+      footer={
+        <div className="space-y-2">
+          <p>Need access? Contact your system administrator</p>
+          <button
+            type="button"
+            onClick={() => window.location.href = '/guard-login?browser=true'}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Switch to Guard Login
+          </button>
+        </div>
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (

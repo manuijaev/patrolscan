@@ -84,7 +84,18 @@ export default function GuardLogin() {
       title="Guard Access"
       subtitle="Enter your credentials to begin patrol"
       icon={<IconShieldCheck size={24} />}
-      footer="Secure Patrol Access System"
+      footer={
+        <div className="space-y-2">
+          <p>Secure Patrol Access System</p>
+          <button
+            type="button"
+            onClick={() => window.location.href = '/admin-login?browser=true'}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Switch to Admin Login
+          </button>
+        </div>
+      }
     >
       <form className="space-y-5" onSubmit={e => { e.preventDefault(); submitLogin(); }}>
         {error && (

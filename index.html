@@ -20,6 +20,21 @@
         const titleEl = document.querySelector('title');
         const appleTitleEl = document.querySelector('meta[name="apple-mobile-web-app-title"]');
         
+        // Check if running as installed PWA
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        
+        // Check for browser-only flag
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceBrowser = urlParams.get('browser') === 'true';
+        
+        if (forceBrowser) {
+          // Remove the flag and reload in browser mode
+          urlParams.delete('browser');
+          const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+          window.location.href = newUrl;
+          return;
+        }
+        
         if (path.includes('admin')) {
           manifestEl.setAttribute('href', '/admin-manifest.json');
           themeEl.setAttribute('content', '#7c3aed');
