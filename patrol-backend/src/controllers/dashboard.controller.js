@@ -1,6 +1,6 @@
 import { getAll as getAllScans } from '../data/scans.js'
 import { getAll as getAllCheckpoints } from '../data/checkpoints.js'
-import { getGuardsWithCheckpoints } from '../data/users.js'
+import { getGuardsWithCheckpoints, getCheckpointResetDate } from '../data/users.js'
 
 // Get dashboard stats
 export async function getStats(req, res) {
@@ -138,18 +138,22 @@ export async function getUpcomingPatrols(req, res) {
         const assigned = guard.assignedCheckpoints.map(cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
           
-          // Check if guard has scanned this checkpoint today
-          const scannedToday = scans.some(
+          // Get the reset date for this checkpoint
+          const resetDate = getCheckpointResetDate(guard.id, cpId)
+          const resetDateObj = resetDate ? new Date(resetDate) : null
+          
+          // Check if guard has scanned this checkpoint after the reset date
+          const scannedAfterReset = scans.some(
             s => Number(s.guardId) === Number(guard.id) && 
-                s.checkpointId === cpId && 
+                String(s.checkpointId) === String(cpId) && 
                 s.result !== 'failed' &&
-                new Date(s.scannedAt) >= startOfToday
+                (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
           )
           
           return {
             id: cpId,
             name: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
-            status: scannedToday ? 'completed' : 'pending'
+            status: scannedAfterReset ? 'completed' : 'pending'
           }
         })
         

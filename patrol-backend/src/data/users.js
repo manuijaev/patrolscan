@@ -106,8 +106,45 @@ export async function assignCheckpoints(guardId, checkpointIds) {
   if (index === -1) return false
   
   guards[index].assignedCheckpoints = checkpointIds
+  
+  // Initialize checkpointResetDates if not exists
+  if (!guards[index].checkpointResetDates) {
+    guards[index].checkpointResetDates = {}
+  }
+  
+  // Set reset date for each checkpoint
+  checkpointIds.forEach(cpId => {
+    if (!guards[index].checkpointResetDates[cpId]) {
+      guards[index].checkpointResetDates[cpId] = new Date().toISOString()
+    }
+  })
+  
   await saveGuards(guards)
   return true
+}
+
+// Reset checkpoint assignment (for re-assign functionality)
+export async function resetCheckpointAssignment(guardId, checkpointId) {
+  const index = guards.findIndex(g => g.id === guardId)
+  if (index === -1) return false
+  
+  // Initialize checkpointResetDates if not exists
+  if (!guards[index].checkpointResetDates) {
+    guards[index].checkpointResetDates = {}
+  }
+  
+  // Set reset date for this checkpoint
+  guards[index].checkpointResetDates[checkpointId] = new Date().toISOString()
+  
+  await saveGuards(guards)
+  return true
+}
+
+// Get checkpoint reset date for a guard
+export function getCheckpointResetDate(guardId, checkpointId) {
+  const guard = guards.find(g => g.id === guardId)
+  if (!guard || !guard.checkpointResetDates) return null
+  return guard.checkpointResetDates[checkpointId] || null
 }
 
 // Get guard with assigned checkpoints
