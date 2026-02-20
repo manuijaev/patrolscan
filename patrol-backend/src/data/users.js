@@ -22,15 +22,26 @@ async function saveGuards(guards) {
   await fs.writeFile(dataFile, JSON.stringify(guards, null, 2))
 }
 
-// In-memory guards array
+// In-memory guards array - initialize synchronously to prevent race conditions
 let guards = []
+let initialized = false
 
-// Initialize guards
-loadGuards().then(loaded => {
-  guards = loaded
-}).catch(() => {
-  guards = []
-})
+// Initialize guards on module load
+async function initializeGuards() {
+  if (initialized) return
+  try {
+    guards = await loadGuards()
+    initialized = true
+    console.log('Guards loaded:', guards.length)
+  } catch (err) {
+    console.error('Failed to load guards:', err)
+    guards = []
+    initialized = true
+  }
+}
+
+// Call initialization immediately
+initializeGuards()
 
 export const admins = [
   {

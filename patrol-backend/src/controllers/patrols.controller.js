@@ -76,7 +76,7 @@ export async function assignPatrolCheckpoint(req, res) {
     }
     
     const checkpoints = await getAllCheckpoints()
-    const checkpoint = checkpoints.find(cp => cp.id === Number(checkpointId))
+    const checkpoint = checkpoints.find(cp => cp.id === checkpointId)
     
     if (!checkpoint) {
       return res.status(404).json({ message: 'Checkpoint not found' })
@@ -86,18 +86,18 @@ export async function assignPatrolCheckpoint(req, res) {
     const currentAssigned = guard.assignedCheckpoints || []
     
     // Check if already assigned
-    if (currentAssigned.includes(Number(checkpointId))) {
+    if (currentAssigned.includes(checkpointId)) {
       return res.status(400).json({ message: 'Checkpoint already assigned to this guard' })
     }
     
     // Add the new checkpoint
-    const newAssigned = [...currentAssigned, Number(checkpointId)]
+    const newAssigned = [...currentAssigned, checkpointId]
     assignCheckpoints(Number(guardId), newAssigned)
     
     res.json({ 
       message: 'Checkpoint assigned successfully',
       guardId: Number(guardId),
-      checkpointId: Number(checkpointId)
+      checkpointId: checkpointId
     })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -117,7 +117,7 @@ export async function removePatrolCheckpoint(req, res) {
     }
     
     const currentAssigned = guard.assignedCheckpoints || []
-    const newAssigned = currentAssigned.filter(id => id !== Number(checkpointId))
+    const newAssigned = currentAssigned.filter(id => id !== checkpointId)
     
     assignCheckpoints(Number(guardId), newAssigned)
     
@@ -147,15 +147,15 @@ export async function reassignPatrolCheckpoint(req, res) {
     // The guard will need to scan it again
     const currentAssigned = guard.assignedCheckpoints || []
     
-    if (!currentAssigned.includes(Number(checkpointId))) {
+    if (!currentAssigned.includes(checkpointId)) {
       // If not assigned, add it
-      assignCheckpoints(Number(guardId), [...currentAssigned, Number(checkpointId)])
+      assignCheckpoints(Number(guardId), [...currentAssigned, checkpointId])
     }
     
     res.json({ 
       message: 'Checkpoint re-assigned successfully. Guard needs to scan it again.',
       guardId: Number(guardId),
-      checkpointId: Number(checkpointId)
+      checkpointId: checkpointId
     })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -181,24 +181,24 @@ export async function updatePatrolAssignment(req, res) {
     // Remove from current guard(s) and add to new guard
     guards.forEach(guard => {
       const currentAssigned = guard.assignedCheckpoints || []
-      const hasCheckpoint = currentAssigned.includes(Number(checkpointId))
+      const hasCheckpoint = currentAssigned.includes(checkpointId)
       
       if (hasCheckpoint && guard.id !== Number(newGuardId)) {
         // Remove from current guard
-        const newAssigned = currentAssigned.filter(id => id !== Number(checkpointId))
+        const newAssigned = currentAssigned.filter(id => id !== checkpointId)
         assignCheckpoints(guard.id, newAssigned)
       }
     })
     
     // Add to new guard if not already assigned
     const newGuardCurrentAssigned = newGuard.assignedCheckpoints || []
-    if (!newGuardCurrentAssigned.includes(Number(checkpointId))) {
-      assignCheckpoints(Number(newGuardId), [...newGuardCurrentAssigned, Number(checkpointId)])
+    if (!newGuardCurrentAssigned.includes(checkpointId)) {
+      assignCheckpoints(Number(newGuardId), [...newGuardCurrentAssigned, checkpointId])
     }
     
     res.json({ 
       message: 'Checkpoint assignment updated successfully',
-      checkpointId: Number(checkpointId),
+      checkpointId: checkpointId,
       newGuardId: Number(newGuardId)
     })
   } catch (error) {

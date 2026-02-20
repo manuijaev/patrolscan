@@ -4,14 +4,15 @@
     "name": "ZACK",
     "pin": "$2b$10$TkibfSNJVQ1QDVVwN8eq4Oa/slodX0Mi0S.txWPh2eqHj1..lo6g2",
     "role": "guard",
-    "assignedCheckpoints": [
-      "cp-1770147996002-9c1kkardv"
-    ]
+    "assignedCheckpoints": []
   },
   {
     "id": 3,
     "name": "MA",
     "pin": "$2b$10$8CpY5WpWHJxsWlkOcWGPB.x4tetPrWb7rmieP3hqi4kdJxrdaZUIe",
-    "role": "guard"
+    "role": "guard",
+    "assignedCheckpoints": [
+      "cp-1771603691300-hyrrjojp7"
+    ]
   }
 ]

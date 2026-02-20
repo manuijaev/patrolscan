@@ -94,7 +94,21 @@ export const update = async (req, res) => {
 // Delete checkpoint
 export const remove = async (req, res) => {
   try {
-    const deleted = await checkpoints.remove(req.params.id)
+    const checkpointId = req.params.id
+    
+    // First, remove this checkpoint from all guard assignments
+    const { getGuards, assignCheckpoints } = await import('../data/users.js')
+    const guards = getGuards()
+    
+    for (const guard of guards) {
+      if (guard.assignedCheckpoints && guard.assignedCheckpoints.includes(checkpointId)) {
+        const newAssigned = guard.assignedCheckpoints.filter(id => id !== checkpointId)
+        assignCheckpoints(guard.id, newAssigned)
+      }
+    }
+    
+    // Then delete the checkpoint from the database
+    const deleted = await checkpoints.remove(checkpointId)
 
     if (!deleted) {
       return res.status(404).json({ error: 'Checkpoint not found' })

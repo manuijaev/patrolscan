@@ -110,7 +110,7 @@ export function assignCheckpointsController(req, res) {
 export async function unassignCheckpointController(req, res) {
   const { id, checkpointId } = req.params
 
-  const success = await unassignCheckpoint(Number(id), Number(checkpointId))
+  const success = await unassignCheckpoint(Number(id), checkpointId)
 
   if (!success) {
     return res.status(404).json({ message: 'Guard or checkpoint not found' })

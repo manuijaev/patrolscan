@@ -373,7 +373,7 @@ export default function UpcomingPatrols() {
                 <label className="block text-sm text-[color:var(--text-muted)] mb-1">Select Checkpoint</label>
                 <select
                   value={selectedCheckpoint || ''}
-                  onChange={e => setSelectedCheckpoint(Number(e.target.value))}
+                  onChange={e => setSelectedCheckpoint(e.target.value)}
                   className="w-full rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2 focus:outline-none focus:border-[color:var(--accent)]"
                 >
                   <option value="">Choose a checkpoint...</option>

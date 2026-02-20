@@ -1,17 +1,14 @@
 [
   {
-    "id": "cp-1770147996002-9c1kkardv",
-    "name": "Gate B",
-    "location": "watchman towerz",
-    "description": "close to the ceo's office",
-    "createdAt": "2026-02-03T19:46:36.003Z",
-    "updatedAt": "2026-02-03T20:02:30.134Z"
-  },
-  {
-    "id": "cp-1770148807186-0wpbt0w6j",
-    "name": "Gate A",
-    "location": "zion hall",
+    "id": "cp-1771603691300-hyrrjojp7",
+    "name": "bnbnbjk",
+    "location": "",
     "description": "",
-    "createdAt": "2026-02-03T20:00:07.186Z"
+    "latitude": -1.277952,
+    "longitude": 36.8214016,
+    "allowed_radius": 67,
+    "gps_accuracy_at_creation": 291327.0263158252,
+    "created_by": 1,
+    "createdAt": "2026-02-20T16:08:11.300Z"
   }
 ]
