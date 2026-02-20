@@ -36,7 +36,8 @@ export async function getByDateRange(req, res) {
 // Record a scan (guard)
 export async function recordScan(req, res) {
   try {
-    const { guardId } = req.user
+    // JWT stores 'id', not 'guardId'
+    const guardId = req.user.id
     const { checkpointId, location, result, failureReason, scannedAt } = req.body
     
     if (!checkpointId) {
