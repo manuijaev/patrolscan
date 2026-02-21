@@ -10,7 +10,7 @@ import {
   IconArrowRight,
   IconClock
 } from '@tabler/icons-react'
-import { Toaster, toast } from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
@@ -220,18 +220,6 @@ export default function UpcomingPatrols() {
 
   return (
     <div className="space-y-6">
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: 'var(--panel)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-          },
-        }}
-      />
-      
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Upcoming Patrols</h2>

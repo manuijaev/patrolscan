@@ -6,7 +6,6 @@ import {
   IconLoader2,
   IconCheck,
   IconNumber,
-  IconBackspace,
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { useNavigate } from 'react-router-dom'
@@ -20,6 +19,18 @@ export default function GuardLogin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [switchClass, setSwitchClass] = useState('')
+  const [entryClass, setEntryClass] = useState('')
+
+  useEffect(() => {
+    const direction = sessionStorage.getItem('login_flip_in')
+    if (direction === 'left' || direction === 'right') {
+      setEntryClass(`login-flip-in-${direction}`)
+      sessionStorage.removeItem('login_flip_in')
+      const timer = setTimeout(() => setEntryClass(''), 650)
+      return () => clearTimeout(timer)
+    }
+  }, [])
 
   const submitLogin = useCallback(async () => {
     if (username.length < 2 || pin.length !== 4) {
@@ -65,18 +76,11 @@ export default function GuardLogin() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Handle PIN button clicks
-  const handlePinDigit = (digit) => {
-    if (pin.length < 4) {
-      setPin(prev => prev + digit)
-      setError('')
-    }
-  }
-
-  // Clear PIN
-  const clearPin = () => {
-    setPin('')
-    setError('')
+  function switchToAdminLogin() {
+    if (loading || success || switchClass) return
+    setSwitchClass('login-flip-out-right')
+    sessionStorage.setItem('login_flip_in', 'right')
+    setTimeout(() => navigate('/admin-login'), 420)
   }
 
   return (
@@ -84,22 +88,24 @@ export default function GuardLogin() {
       title="Guard Access"
       subtitle="Enter your credentials to begin patrol"
       icon={<IconShieldCheck size={24} />}
+      transitionClass={`${entryClass} ${switchClass}`.trim()}
       footer={
         <div className="space-y-2">
           <p>Secure Patrol Access System</p>
           <button
             type="button"
-            onClick={() => window.location.href = '/admin-login?browser=true'}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            onClick={switchToAdminLogin}
+            className="text-sm text-[color:var(--accent)] hover:text-[color:var(--accent-strong)] hover:underline transition"
+            disabled={!!switchClass}
           >
             Switch to Admin Login
           </button>
         </div>
       }
     >
-      <form className="space-y-5" onSubmit={e => { e.preventDefault(); submitLogin(); }}>
+      <form className="space-y-5 login-form" onSubmit={e => { e.preventDefault(); submitLogin(); }}>
         {error && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 
+          <div className="login-alert login-alert-error flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 
             border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
             <IconAlertCircle size={16} />
             <span>{error}</span>
@@ -107,7 +113,7 @@ export default function GuardLogin() {
         )}
 
         {success && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 
+          <div className="login-alert login-alert-success flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 
             border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 text-sm">
             <IconCheck size={16} />
             <span>Access granted. Redirecting...</span>
@@ -118,7 +124,7 @@ export default function GuardLogin() {
           <label className="text-left text-xs font-medium text-[color:var(--text-muted)] uppercase tracking-wide">
             Username
           </label>
-          <div className="relative group">
+          <div className="relative group login-input-wrap">
             <IconUser className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] 
               group-focus-within:text-[color:var(--accent)] transition-colors" size={20} />
             <input
@@ -126,7 +132,7 @@ export default function GuardLogin() {
               placeholder="Enter your username"
               value={username}
               onChange={e => { setUsername(e.target.value); setError(''); }}
-              className="w-full pl-11 pr-4 py-3 rounded-lg bg-[color:var(--bg-muted)]
+              className="login-input w-full pl-11 pr-4 py-3 rounded-lg bg-[color:var(--bg-muted)]
                 border border-[color:var(--border)] focus:outline-none focus:border-[color:var(--accent)]
                 focus:ring-2 focus:ring-[color:var(--accent)]/20 transition-all text-sm
                 placeholder:text-[color:var(--text-muted)]"
@@ -175,7 +181,7 @@ export default function GuardLogin() {
                 setError('')
               }
             }}
-            className="text-center text-xl tracking-[0.5em] font-mono w-full py-3
+            className="login-input text-center text-xl tracking-[0.5em] font-mono w-full py-3
               bg-[color:var(--bg-muted)] border border-[color:var(--border)] rounded-lg
               focus:outline-none focus:border-[color:var(--accent)] focus:ring-2 
               focus:ring-[color:var(--accent)]/20 transition-all
@@ -184,39 +190,12 @@ export default function GuardLogin() {
             disabled={loading || success}
             autoComplete="off"
           />
-          
-          {/* Quick PIN Buttons */}
-          <div className="grid grid-cols-4 gap-2 mt-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
-              <button
-                key={num}
-                type="button"
-                onClick={() => handlePinDigit(num.toString())}
-                disabled={pin.length >= 4 || loading || success}
-                className="py-3 rounded-lg bg-[color:var(--bg-muted)] border border-[color:var(--border)]
-                  hover:bg-[color:var(--accent)] hover:text-white hover:border-[color:var(--accent)]
-                  transition-all font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {num}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={clearPin}
-              disabled={pin.length === 0 || loading || success}
-              className="py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800
-                text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40
-                transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-            >
-              <IconBackspace size={18} />
-            </button>
-          </div>
         </div>
 
         <button
           type="submit"
           disabled={username.length < 2 || pin.length !== 4 || loading || success}
-          className="w-full py-3 rounded-lg bg-[color:var(--accent)] text-white
+          className="login-cta w-full py-3 rounded-lg bg-[color:var(--accent)] text-white
             hover:bg-[color:var(--accent-strong)] transition-all font-medium text-sm
             disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
             shadow-lg shadow-[color:var(--accent)]/20"

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Toaster, toast } from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
 import {
   IconPlus,
   IconEdit,
@@ -258,7 +258,6 @@ export default function Checkpoints() {
 
   return (
     <div className="space-y-6">
-      <Toaster position="top-center" />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Checkpoints</h2>

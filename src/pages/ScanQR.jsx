@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
-import { Toaster, toast } from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 import {
   IconCamera,
   IconCheck,
@@ -19,17 +20,19 @@ import {
   IconMoon,
   IconSun,
   IconArrowLeft,
-  IconEye
+  IconEye,
+  IconLogout
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
-import { getToken, getUser } from '../auth/authStore'
+import { getToken, getUser, logout } from '../auth/authStore'
 
 const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
 const FAIL_COOLDOWN_MS = 10000 // 10 seconds for failed scans
 const MAX_PROCESSING_TIME = 10000 // 10 seconds max processing time
 
 export default function ScanQR() {
+  const navigate = useNavigate()
   const qrRef = useRef(null)
   const scannerRef = useRef(null)
   const [lastScans, setLastScans] = useState([])
@@ -209,6 +212,12 @@ export default function ScanQR() {
       // Fall back to localStorage only
       setLastScans(localScans.slice(0, 5))
     }
+  }
+
+  async function handleLogout() {
+    await stopScanner()
+    logout()
+    navigate('/guard-login', { replace: true })
   }
 
   // Save scan to localStorage for persistence
@@ -678,18 +687,6 @@ export default function ScanQR() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: 'var(--panel)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-          },
-        }}
-      />
-
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 px-4 py-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -726,6 +723,17 @@ export default function ScanQR() {
             >
               <IconRefresh size={18} />
               <span className="text-sm font-medium">Restart Scanner</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="group relative overflow-hidden flex items-center gap-2 px-4 py-2 rounded-xl
+                bg-red-500 text-white hover:bg-red-600 active:bg-red-700
+                transition-all duration-300 ease-out transform hover:-translate-y-0.5 active:translate-y-0
+                shadow-md hover:shadow-lg hover:shadow-red-500/30"
+            >
+              <span className="absolute inset-0 -translate-x-full group-hover:translate-x-0 transition-transform duration-500 bg-gradient-to-r from-white/0 via-white/20 to-white/0" />
+              <IconLogout size={18} className="relative z-10 transition-transform duration-300 group-hover:-translate-x-0.5" />
+              <span className="relative z-10 text-sm font-medium">Logout</span>
             </button>
           </div>
         </div>

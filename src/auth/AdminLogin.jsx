@@ -23,6 +23,18 @@ export default function AdminLogin() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
+  const [switchClass, setSwitchClass] = useState('')
+  const [entryClass, setEntryClass] = useState('')
+
+  useEffect(() => {
+    const direction = sessionStorage.getItem('login_flip_in')
+    if (direction === 'left' || direction === 'right') {
+      setEntryClass(`login-flip-in-${direction}`)
+      sessionStorage.removeItem('login_flip_in')
+      const timer = setTimeout(() => setEntryClass(''), 650)
+      return () => clearTimeout(timer)
+    }
+  }, [])
 
   // Handle keyboard submission
   useEffect(() => {
@@ -44,7 +56,7 @@ export default function AdminLogin() {
 
     try {
       const res = await api.post('/auth/admin/login', { email, password })
-      saveAuth(res.data.token, { role: 'admin' })
+      saveAuth(res.data.token, { role: 'admin' }, rememberMe)
       setIsSuccess(true)
       setTimeout(() => navigate('/dashboard'), 600)
     } catch (err) {
@@ -55,27 +67,36 @@ export default function AdminLogin() {
     }
   }
 
+  function switchToGuardLogin() {
+    if (loading || isSuccess || switchClass) return
+    setSwitchClass('login-flip-out-left')
+    sessionStorage.setItem('login_flip_in', 'left')
+    setTimeout(() => navigate('/guard-login'), 420)
+  }
+
   return (
     <LoginLayout
       title="Admin Portal"
       subtitle="Secure access for administrators"
       icon={<IconShield size={24} />}
+      transitionClass={`${entryClass} ${switchClass}`.trim()}
       footer={
         <div className="space-y-2">
           <p>Need access? Contact your system administrator</p>
           <button
             type="button"
-            onClick={() => window.location.href = '/guard-login?browser=true'}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            onClick={switchToGuardLogin}
+            className="text-sm text-[color:var(--accent)] hover:text-[color:var(--accent-strong)] hover:underline transition"
+            disabled={!!switchClass}
           >
             Switch to Guard Login
           </button>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 login-form">
         {error && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 
+          <div className="login-alert login-alert-error flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 
             border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
             <IconAlertCircle size={16} />
             <span>{error}</span>
@@ -83,7 +104,7 @@ export default function AdminLogin() {
         )}
 
         {isSuccess && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 
+          <div className="login-alert login-alert-success flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 
             border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 text-sm">
             <IconCheck size={16} />
             <span>Login successful. Redirecting...</span>
@@ -94,7 +115,7 @@ export default function AdminLogin() {
           <label className="text-left text-xs font-medium text-[color:var(--text-muted)] uppercase tracking-wide">
             Email Address
           </label>
-          <div className="relative group">
+          <div className="relative group login-input-wrap">
             <IconMail className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] 
               group-focus-within:text-[color:var(--accent)] transition-colors" size={20} />
             <input
@@ -102,7 +123,7 @@ export default function AdminLogin() {
               placeholder="admin@patrolscan.com"
               value={email}
               onChange={e => { setEmail(e.target.value); setError(''); }}
-              className="w-full pl-11 pr-4 py-3 rounded-lg bg-[color:var(--bg-muted)]
+              className="login-input w-full pl-11 pr-4 py-3 rounded-lg bg-[color:var(--bg-muted)]
                 border border-[color:var(--border)] focus:outline-none focus:border-[color:var(--accent)]
                 focus:ring-2 focus:ring-[color:var(--accent)]/20 transition-all text-sm
                 placeholder:text-[color:var(--text-muted)]"
@@ -117,7 +138,7 @@ export default function AdminLogin() {
           <label className="text-left text-xs font-medium text-[color:var(--text-muted)] uppercase tracking-wide">
             Password
           </label>
-          <div className="relative group">
+          <div className="relative group login-input-wrap">
             <IconLock className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)] 
               group-focus-within:text-[color:var(--accent)] transition-colors" size={20} />
             <input
@@ -125,7 +146,7 @@ export default function AdminLogin() {
               placeholder="Enter your password"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); }}
-              className="w-full pl-11 pr-11 py-3 rounded-lg bg-[color:var(--bg-muted)]
+              className="login-input w-full pl-11 pr-11 py-3 rounded-lg bg-[color:var(--bg-muted)]
                 border border-[color:var(--border)] focus:outline-none focus:border-[color:var(--accent)]
                 focus:ring-2 focus:ring-[color:var(--accent)]/20 transition-all text-sm
                 placeholder:text-[color:var(--text-muted)]"
@@ -170,7 +191,7 @@ export default function AdminLogin() {
         <button
           type="submit"
           disabled={loading || isSuccess || !email || !password}
-          className="w-full py-3 rounded-lg bg-[color:var(--accent)] text-white
+          className="login-cta w-full py-3 rounded-lg bg-[color:var(--accent)] text-white
             hover:bg-[color:var(--accent-strong)] transition-all font-medium text-sm
             disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
             shadow-lg shadow-[color:var(--accent)]/20"
