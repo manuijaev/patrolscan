@@ -109,8 +109,13 @@ async function validateAndPersistScan({ guardId, payload }) {
   }
 
   const distanceMeters = haversineDistanceMeters(scanLat, scanLon, checkpointLat, checkpointLon)
-  const worstCaseDistance = distanceMeters + scanAccuracy
-  const withinRadius = worstCaseDistance <= allowedRadius
+  // Use overlap logic: pass when GPS uncertainty still allows the true
+  // position to be within the allowed radius.
+  // Distance uncertainty interval is [distance-accuracy, distance+accuracy].
+  // If the lower bound is within allowed radius, scan can be valid.
+  const minPossibleDistance = Math.max(0, distanceMeters - scanAccuracy)
+  const maxPossibleDistance = distanceMeters + scanAccuracy
+  const withinRadius = minPossibleDistance <= allowedRadius
   const validationResult = withinRadius ? 'passed' : 'failed'
   const validationFailureReason = withinRadius
     ? null
@@ -127,7 +132,8 @@ async function validateAndPersistScan({ guardId, payload }) {
       checkpointLongitude: checkpointLon,
       allowedRadius,
       computedDistanceMeters: Number(distanceMeters.toFixed(3)),
-      worstCaseDistanceMeters: Number(worstCaseDistance.toFixed(3))
+      minPossibleDistanceMeters: Number(minPossibleDistance.toFixed(3)),
+      maxPossibleDistanceMeters: Number(maxPossibleDistance.toFixed(3))
     },
     result: validationResult,
     failureReason: validationFailureReason || failureReason || null,
