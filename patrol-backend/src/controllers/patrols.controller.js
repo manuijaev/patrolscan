@@ -16,12 +16,12 @@ export async function getPatrolAssignments(req, res) {
     
     const assignments = guards
       .filter(g => g.assignedCheckpoints && g.assignedCheckpoints.length > 0)
-      .map(guard => {
-        const assigned = (guard.assignedCheckpoints || []).map(cpId => {
+      .map(async guard => {
+        const assigned = await Promise.all((guard.assignedCheckpoints || []).map(async cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
           
           // Get the reset date for this checkpoint
-          const resetDate = getCheckpointResetDate(guard.id, cpId)
+          const resetDate = await getCheckpointResetDate(guard.id, cpId)
           const resetDateObj = resetDate ? new Date(resetDate) : null
           
           // Check if guard has scanned this checkpoint after the reset date
@@ -45,7 +45,7 @@ export async function getPatrolAssignments(req, res) {
               (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
             )?.scannedAt : null
           }
-        })
+        }))
         
         return {
           guardId: guard.id,
@@ -56,7 +56,8 @@ export async function getPatrolAssignments(req, res) {
         }
       })
     
-    res.json(assignments)
+    const results = await Promise.all(assignments)
+    res.json(results)
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
