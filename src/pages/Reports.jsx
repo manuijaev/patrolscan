@@ -21,6 +21,41 @@ export default function Reports() {
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
 
+  function locationText(value) {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'object') {
+      const lat = value.latitude
+      const lon = value.longitude
+      const acc = value.accuracy
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        const coord = `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+        return typeof acc === 'number' ? `${coord} (±${Math.round(acc)}m)` : coord
+      }
+      try {
+        return JSON.stringify(value)
+      } catch {
+        return ''
+      }
+    }
+    return String(value)
+  }
+
+  function normalizeScan(scanItem) {
+    return {
+      ...scanItem,
+      guardName:
+        typeof scanItem.guardName === 'string'
+          ? scanItem.guardName
+          : (scanItem.guardName ? String(scanItem.guardName) : 'Unknown Guard'),
+      checkpointName:
+        typeof scanItem.checkpointName === 'string'
+          ? scanItem.checkpointName
+          : (scanItem.checkpointName ? String(scanItem.checkpointName) : 'Unknown Checkpoint'),
+      locationText: locationText(scanItem.location),
+    }
+  }
+
   async function loadScans() {
     setLoading(true)
     setError('')
@@ -75,7 +110,8 @@ export default function Reports() {
       const res = await api.get(`/scans/date-range?startDate=${startDate}&endDate=${endDate}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      setScans(res.data || [])
+      const normalized = (res.data || []).map(normalizeScan)
+      setScans(normalized)
     } catch (err) {
       console.error('Failed to load scans', err)
       setError(err.response?.data?.message || 'Failed to load scans. Please try again.')
@@ -93,26 +129,6 @@ export default function Reports() {
       loadScans()
     }
   }, [customStart, customEnd])
-
-  function locationText(value) {
-    if (!value) return ''
-    if (typeof value === 'string') return value
-    if (typeof value === 'object') {
-      const lat = value.latitude
-      const lon = value.longitude
-      const acc = value.accuracy
-      if (typeof lat === 'number' && typeof lon === 'number') {
-        const coord = `${lat.toFixed(5)}, ${lon.toFixed(5)}`
-        return typeof acc === 'number' ? `${coord} (±${Math.round(acc)}m)` : coord
-      }
-      try {
-        return JSON.stringify(value)
-      } catch {
-        return ''
-      }
-    }
-    return String(value)
-  }
 
   function formatDate(isoString) {
     try {
@@ -148,7 +164,7 @@ export default function Reports() {
       formatTime(scanItem.scannedAt),
       scanItem.guardName || 'Unknown',
       scanItem.checkpointName || 'Unknown',
-      locationText(scanItem.location)
+      scanItem.locationText || ''
     ])
 
     const csvContent = [
@@ -173,7 +189,7 @@ export default function Reports() {
     return (
       (scanItem.guardName || '').toLowerCase().includes(term) ||
       (scanItem.checkpointName || '').toLowerCase().includes(term) ||
-      locationText(scanItem.location).toLowerCase().includes(term)
+      (scanItem.locationText || '').toLowerCase().includes(term)
     )
   })
 
@@ -358,7 +374,7 @@ export default function Reports() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm text-[color:var(--text-muted)] truncate max-w-[200px]">
-                        {locationText(scanItem.location) || 'No location data'}
+                        {scanItem.locationText || 'No location data'}
                       </div>
                     </td>
                   </tr>
