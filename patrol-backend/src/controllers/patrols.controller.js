@@ -24,22 +24,7 @@ export async function getPatrolAssignments(req, res) {
           const resetDate = await getCheckpointResetDate(guard.id, cpId)
           const resetDateObj = resetDate ? new Date(resetDate) : null
           
-          // Check if this checkpoint was reset (reassigned) - if so, always show as pending
-          // This makes Reassign work immediately regardless of time of day
-          const isReset = !!resetDateObj
-          
-          if (isReset) {
-            return {
-              id: cpId,
-              checkpointId: cpId,
-              name: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
-              location: checkpoint ? checkpoint.location : '',
-              status: 'pending',
-              completedAt: null
-            }
-          }
-          
-          // Check if guard has scanned this checkpoint after the reset date (or if no reset date)
+          // Treat scans before reset as historical only; after reassign, a new scan is required.
           const scannedAfterReset = scans.some(
             s => Number(s.guardId) === Number(guard.id) && 
                 String(s.checkpointId) === String(cpId) && 
@@ -165,12 +150,26 @@ export async function reassignPatrolCheckpoint(req, res) {
     
     console.log('Guard found:', guard.name, 'checkpointResetDates before:', guard.checkpointResetDates)
     
-    // Re-assignment means ensuring the checkpoint is still assigned and resetting its status
+    // Re-assign is only valid for checkpoints currently assigned to this guard
     const currentAssigned = guard.assignedCheckpoints || []
     
     if (!currentAssigned.some(id => String(id) === String(checkpointId))) {
-      // If not assigned, add it
-      await assignCheckpointsToGuard(Number(guardId), [...currentAssigned, checkpointId])
+      return res.status(400).json({ message: 'Checkpoint is not assigned to this guard' })
+    }
+
+    // Re-assign is only valid for currently completed checkpoints
+    const scans = await getAllScans()
+    const resetDate = await getCheckpointResetDate(Number(guardId), checkpointId)
+    const resetDateObj = resetDate ? new Date(resetDate) : null
+    const isCompleted = scans.some(
+      s => Number(s.guardId) === Number(guardId) &&
+        String(s.checkpointId) === String(checkpointId) &&
+        s.result !== 'failed' &&
+        (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
+    )
+
+    if (!isCompleted) {
+      return res.status(400).json({ message: 'Only completed assigned checkpoints can be reassigned' })
     }
     
     // Reset the checkpoint assignment timestamp (without deleting scan history)

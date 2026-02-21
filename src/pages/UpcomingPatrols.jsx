@@ -128,6 +128,26 @@ export default function UpcomingPatrols() {
 
   // Handle re-assign completed checkpoint
   async function handleReassign(guardId, checkpointId) {
+    const previousPatrols = patrols.map(patrol => ({
+      ...patrol,
+      checkpoints: [...(patrol.checkpoints || [])]
+    }))
+
+    setPatrols(prev => prev.map(patrol => {
+      if (Number(patrol.guardId) !== Number(guardId)) return patrol
+
+      const updatedCheckpoints = (patrol.checkpoints || []).map(cp => {
+        if (String(cp.checkpointId) !== String(checkpointId)) return cp
+        return { ...cp, status: 'pending', completedAt: null }
+      })
+
+      return {
+        ...patrol,
+        checkpoints: updatedCheckpoints,
+        completedToday: updatedCheckpoints.filter(cp => cp.status === 'completed').length
+      }
+    }))
+
     try {
       const token = getToken()
       await api.post('/patrol-assignments/reassign', {
@@ -140,8 +160,9 @@ export default function UpcomingPatrols() {
       toast.success('Checkpoint re-assigned. Guard needs to scan it again.')
       await loadData()
     } catch (err) {
+      setPatrols(previousPatrols)
       console.error('Failed to reassign', err)
-      toast.error('Failed to re-assign checkpoint')
+      toast.error(err.response?.data?.message || 'Failed to re-assign checkpoint')
     }
   }
 
