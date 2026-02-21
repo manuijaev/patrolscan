@@ -6,7 +6,8 @@ import {
   deleteGuard as dbDeleteGuard, 
   assignCheckpointsToGuard, 
   getGuardsWithCheckpoints, 
-  unassignCheckpoint as dbUnassignCheckpoint 
+  unassignCheckpoint as dbUnassignCheckpoint,
+  getCheckpointResetDate
 } from '../db/models/index.js'
 import { getAllScans } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
@@ -22,24 +23,45 @@ export async function listGuards(req, res) {
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   
-  // Get checkpoints completed today for each guard
-  const guardsWithStatus = activeGuards.map(g => {
-    const guardScans = scans.filter(s => 
-      Number(s.guardId) === Number(g.id) && 
-      new Date(s.scannedAt) >= startOfToday &&
-      s.result !== 'failed'
-    )
-    const completedCheckpointIds = [...new Set(guardScans.map(s => s.checkpointId))]
+  // Get checkpoints completed today for each guard, respecting reset dates
+  const guardsWithStatus = await Promise.all(activeGuards.map(async g => {
+    const guardScans = []
+    
+    for (const cpId of (g.assignedCheckpoints || [])) {
+      // Get the reset date for this checkpoint
+      const resetDate = await getCheckpointResetDate(g.id, cpId)
+      const resetDateObj = resetDate ? new Date(resetDate) : null
+      
+      // Check if this checkpoint was reset today
+      const isResetToday = resetDateObj && resetDateObj.toDateString() === now.toDateString()
+      
+      // If reset today, don't count any scans - show as pending
+      if (isResetToday) {
+        continue
+      }
+      
+      // Otherwise, check if there's a scan after the reset date (or if no reset date)
+      const hasScan = scans.some(s => 
+        Number(s.guardId) === Number(g.id) && 
+        String(s.checkpointId) === String(cpId) &&
+        s.result !== 'failed' &&
+        (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
+      )
+      
+      if (hasScan) {
+        guardScans.push(cpId)
+      }
+    }
     
     return {
       id: g.id,
       name: g.name,
       role: g.role,
       assignedCheckpoints: g.assignedCheckpoints || [],
-      completedCheckpoints: completedCheckpointIds,
+      completedCheckpoints: guardScans,
     }
-  })
-  
+  }))
+
   res.json(guardsWithStatus)
 }
 
@@ -73,16 +95,13 @@ export async function updateGuardController(req, res) {
   const { id } = req.params
   const { name, pin } = req.body
 
-  if (!name || typeof name !== 'string') {
-    return res.status(400).json({ message: 'Name is required' })
+  if (!name && !pin) {
+    return res.status(400).json({ message: 'Name or PIN is required' })
   }
 
-  if (pin && !/^\d{4}$/.test(pin)) {
-    return res.status(400).json({ message: 'PIN must be 4 digits if provided' })
-  }
-
-  const updates = { name: name.trim() }
-  if (pin) {
+  const updates = {}
+  if (name) updates.name = name.trim()
+  if (pin && /^\d{4}$/.test(pin)) {
     updates.pin = bcrypt.hashSync(pin, 10)
   }
 
@@ -92,18 +111,22 @@ export async function updateGuardController(req, res) {
     return res.status(404).json({ message: 'Guard not found' })
   }
 
-  return res.json({ message: 'Guard updated successfully' })
+  return res.json({
+    id: guard.id,
+    name: guard.name,
+    role: guard.role,
+  })
 }
 
 export async function removeGuard(req, res) {
   const { id } = req.params
-  
+
   const success = await dbDeleteGuard(Number(id))
-  
+
   if (!success) {
     return res.status(404).json({ message: 'Guard not found' })
   }
-  
+
   return res.json({ message: 'Guard deleted successfully' })
 }
 
@@ -111,13 +134,8 @@ export async function assignCheckpointsController(req, res) {
   const { id } = req.params
   const { checkpointIds } = req.body
 
-  if (!Array.isArray(checkpointIds)) {
-    return res.status(400).json({ message: 'checkpointIds must be an array' })
-  }
-
-  // Validate: at least one checkpoint must be selected
-  if (checkpointIds.length === 0) {
-    return res.status(400).json({ message: 'Please select at least one checkpoint to assign' })
+  if (!checkpointIds || !Array.isArray(checkpointIds)) {
+    return res.status(400).json({ message: 'checkpointIds array is required' })
   }
 
   const success = await assignCheckpointsToGuard(Number(id), checkpointIds)
