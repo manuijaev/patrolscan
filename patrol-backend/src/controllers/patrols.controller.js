@@ -136,6 +136,8 @@ export async function reassignPatrolCheckpoint(req, res) {
   try {
     const { guardId, checkpointId } = req.body
     
+    console.log('Reassign request:', guardId, checkpointId)
+    
     if (!guardId || !checkpointId) {
       return res.status(400).json({ message: 'guardId and checkpointId are required' })
     }
@@ -147,6 +149,8 @@ export async function reassignPatrolCheckpoint(req, res) {
       return res.status(404).json({ message: 'Guard not found' })
     }
     
+    console.log('Guard found:', guard.name, 'checkpointResetDates before:', guard.checkpointResetDates)
+    
     // Re-assignment means ensuring the checkpoint is still assigned and resetting its status
     const currentAssigned = guard.assignedCheckpoints || []
     
@@ -156,7 +160,13 @@ export async function reassignPatrolCheckpoint(req, res) {
     }
     
     // Reset the checkpoint assignment timestamp (without deleting scan history)
-    await resetCheckpointAssignment(Number(guardId), checkpointId)
+    const result = await resetCheckpointAssignment(Number(guardId), checkpointId)
+    console.log('Reset result:', result)
+    
+    // Verify the reset happened
+    const updatedGuards = await getAllGuards()
+    const updatedGuard = updatedGuards.find(g => Number(g.id) === Number(guardId))
+    console.log('checkpointResetDates after:', updatedGuard?.checkpointResetDates)
     
     res.json({ 
       message: 'Checkpoint re-assigned successfully. Guard needs to scan it again.',
