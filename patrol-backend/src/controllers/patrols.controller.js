@@ -1,5 +1,5 @@
 // Patrol assignments controller
-import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards, getCheckpointResetDate } from '../db/models/index.js'
+import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards, getCheckpointResetDate, resetCheckpointAssignment } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
 import { getAllScans } from '../db/models/index.js'
 
@@ -156,7 +156,7 @@ export async function reassignPatrolCheckpoint(req, res) {
     }
     
     // Reset the checkpoint assignment timestamp (without deleting scan history)
-    await getCheckpointResetDate(Number(guardId), checkpointId)
+    await resetCheckpointAssignment(Number(guardId), checkpointId)
     
     res.json({ 
       message: 'Checkpoint re-assigned successfully. Guard needs to scan it again.',
