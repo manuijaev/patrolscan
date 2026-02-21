@@ -24,12 +24,11 @@ export async function getPatrolAssignments(req, res) {
           const resetDate = await getCheckpointResetDate(guard.id, cpId)
           const resetDateObj = resetDate ? new Date(resetDate) : null
           
-          // Check if this checkpoint was reset today (reassigned today)
-          // If so, always show as pending regardless of scans - this makes Reassign work immediately
-          const isResetToday = resetDateObj && 
-            resetDateObj.toDateString() === new Date().toDateString()
+          // Check if this checkpoint was reset (reassigned) - if so, always show as pending
+          // This makes Reassign work immediately regardless of time of day
+          const isReset = !!resetDateObj
           
-          if (isResetToday) {
+          if (isReset) {
             return {
               id: cpId,
               checkpointId: cpId,

@@ -32,20 +32,17 @@ export async function listGuards(req, res) {
       const resetDate = await getCheckpointResetDate(g.id, cpId)
       const resetDateObj = resetDate ? new Date(resetDate) : null
       
-      // Check if this checkpoint was reset today
-      const isResetToday = resetDateObj && resetDateObj.toDateString() === now.toDateString()
-      
-      // If reset today, don't count any scans - show as pending
-      if (isResetToday) {
+      // If there's ANY reset date (checkpoint was reassigned), don't count any scans - show as pending
+      // This makes Reassign work immediately regardless of time of day
+      if (resetDateObj) {
         continue
       }
       
-      // Otherwise, check if there's a scan after the reset date (or if no reset date)
+      // Otherwise, check if there's a scan (no reset date means count all scans)
       const hasScan = scans.some(s => 
         Number(s.guardId) === Number(g.id) && 
         String(s.checkpointId) === String(cpId) &&
-        s.result !== 'failed' &&
-        (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
+        s.result !== 'failed'
       )
       
       if (hasScan) {
