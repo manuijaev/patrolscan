@@ -23,7 +23,6 @@ import {
   IconCalendarEvent,
   IconUserCheck,
   IconClockHour4,
-  IconEye,
   IconUser
 } from '@tabler/icons-react'
 import api from '../api/axios'
@@ -42,6 +41,7 @@ export default function Dashboard() {
   const [timelineData, setTimelineData] = useState([])
   const [riskScoring, setRiskScoring] = useState([])
   const [upcomingShifts, setUpcomingShifts] = useState([])
+  const [selectedFocusGuardId, setSelectedFocusGuardId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     patrolsToday: 24,
@@ -49,6 +49,20 @@ export default function Dashboard() {
     activeGuards: 6,
     totalCheckpoints: 18
   })
+
+  function formatDuration(seconds) {
+    const safe = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0
+    if (safe < 60) return `${safe}s`
+    const mins = Math.floor(safe / 60)
+    const secs = safe % 60
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`
+  }
+
+  function formatSignedPercent(value) {
+    const safe = Number.isFinite(value) ? value : 0
+    const sign = safe > 0 ? '+' : ''
+    return `${sign}${safe.toFixed(1)}%`
+  }
 
   useEffect(() => {
     loadDashboardData()
@@ -69,12 +83,17 @@ export default function Dashboard() {
       setStats(statsRes.data)
       
       // Calculate performance data from stats
+      const completionRate = Number(statsRes.data.completionRate) || 0
+      const completionRateChange = Number(statsRes.data.completionRateChange) || 0
+      const efficiencyScore = Number(statsRes.data.efficiencyScore) || 0
+      const avgResponseTimeSeconds = Number(statsRes.data.avgResponseTimeSeconds) || 0
+
       setPerformanceData({
-        completionRate: statsRes.data.completionRate || 0,
-        avgResponseTime: '2m 15s',
-        efficiencyScore: statsRes.data.completionRate || 0,
-        trend: statsRes.data.completionRate >= 50 ? 'up' : 'down',
-        change: '+5%'
+        completionRate: completionRate,
+        avgResponseTime: formatDuration(avgResponseTimeSeconds),
+        efficiencyScore: efficiencyScore,
+        trend: completionRateChange >= 0 ? 'up' : 'down',
+        change: formatSignedPercent(completionRateChange)
       })
       
       // Load timeline data
@@ -239,6 +258,19 @@ export default function Dashboard() {
     return `${Math.floor(seconds / 86400)}d ago`
   }
 
+  useEffect(() => {
+    const assignedGuardIds = new Set(upcomingShifts.map(g => Number(g.guardId)))
+    if (assignedGuardIds.size === 0) {
+      setSelectedFocusGuardId(null)
+      return
+    }
+
+    if (!assignedGuardIds.has(Number(selectedFocusGuardId))) {
+      const firstGuard = upcomingShifts[0]
+      setSelectedFocusGuardId(firstGuard ? Number(firstGuard.guardId) : null)
+    }
+  }, [upcomingShifts, selectedFocusGuardId])
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -257,10 +289,6 @@ export default function Dashboard() {
           >
             <IconRefresh size={18} className={loading ? 'animate-spin' : ''} />
             <span className="text-sm font-medium">Refresh</span>
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition font-semibold">
-            <IconEye size={18} />
-            <span className="text-sm">View Live Patrols</span>
           </button>
         </div>
       </div>
@@ -462,7 +490,7 @@ export default function Dashboard() {
                 <h3 className="text-lg font-semibold">Upcoming Patrols</h3>
               </div>
               <button 
-                onClick={() => navigate('/patrols')}
+                onClick={() => navigate('/upcoming-patrols')}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
               >
                 View All
@@ -537,40 +565,81 @@ export default function Dashboard() {
 
       {/* Additional Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Live Patrol Activity */}
+        {/* Guard Focus Card */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Recent Scans</h3>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Last 24h</span>
+            <h3 className="font-semibold">Guard Focus</h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Assigned Guards</span>
           </div>
           <div className="space-y-3">
-            {timelineData.slice(0, 5).map((scan) => {
-              const timeAgo = getTimeAgo(new Date(scan.scannedAt))
-              const isFailed = scan.result === 'failed'
+            {upcomingShifts.length === 0 && (
+              <div className="text-center py-4 text-gray-500">
+                <IconUser size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No assigned guards</p>
+              </div>
+            )}
+
+            {upcomingShifts.map((guard) => {
+              const isOpen = Number(selectedFocusGuardId) === Number(guard.guardId)
+              const recentForGuard = timelineData
+                .filter(scan => Number(scan.guardId) === Number(guard.guardId))
+                .slice(0, 3)
+
               return (
                 <div
-                  key={scan.id}
-                  className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3"
+                  key={guard.guardId}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
                 >
-                  <div>
-                    <p className="font-medium">{scan.guardName}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{scan.checkpointName}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
-                    <span className="text-xs text-[color:var(--text-muted)]">
-                      {isFailed ? 'Failed' : 'Passed'}
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => setSelectedFocusGuardId(isOpen ? null : Number(guard.guardId))}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  >
+                    <div>
+                      <p className="font-medium">{guard.guardName}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {guard.completedToday}/{guard.totalAssigned} completed
+                      </p>
+                    </div>
+                    <IconChevronRight
+                      size={16}
+                      className={`text-gray-500 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-4 pb-3 space-y-2">
+                      {recentForGuard.length === 0 ? (
+                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                          No recent scans for this guard.
+                        </div>
+                      ) : (
+                        recentForGuard.map(scan => {
+                          const isFailed = scan.result === 'failed'
+                          return (
+                            <div
+                              key={scan.id}
+                              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium">{scan.checkpointName}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {getTimeAgo(new Date(scan.scannedAt))}
+                                  </p>
+                                </div>
+                                <span className={`text-xs font-medium ${isFailed ? 'text-red-500' : 'text-green-500'}`}>
+                                  {isFailed ? 'Failed' : 'Passed'}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
-            {timelineData.length === 0 && (
-              <div className="text-center py-4 text-gray-500">
-                <IconActivity size={32} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No recent scans</p>
-              </div>
-            )}
           </div>
         </div>
 

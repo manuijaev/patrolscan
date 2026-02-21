@@ -44,6 +44,29 @@ async function validateAndPersistScan({ guardId, payload }) {
     guard.assignedCheckpoints.some(cpId => String(cpId) === String(checkpointId))
 
   if (!isDesignated) {
+    const scanLat = Number(payload.latitude)
+    const scanLon = Number(payload.longitude)
+    const scanAccuracy = Number(payload.accuracy)
+    const hasLocationPayload =
+      Number.isFinite(scanLat) &&
+      Number.isFinite(scanLon) &&
+      Number.isFinite(scanAccuracy)
+
+    await dbCreateScan({
+      guardId,
+      checkpointId,
+      location: hasLocationPayload
+        ? {
+            latitude: scanLat,
+            longitude: scanLon,
+            accuracy: scanAccuracy
+          }
+        : (location || null),
+      result: 'failed',
+      failureReason: 'Unauthorized attempt: guard not assigned to checkpoint',
+      scannedAt: scannedAt || timestamp || new Date().toISOString()
+    })
+
     return {
       ok: false,
       status: 403,

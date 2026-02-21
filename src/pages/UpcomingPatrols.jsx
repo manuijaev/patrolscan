@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   IconPlus,
   IconTrash,
@@ -15,6 +16,7 @@ import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
 export default function UpcomingPatrols() {
+  const [searchParams] = useSearchParams()
   const [patrols, setPatrols] = useState([])
   const [guards, setGuards] = useState([])
   const [checkpoints, setCheckpoints] = useState([])
@@ -26,6 +28,7 @@ export default function UpcomingPatrols() {
   const [showChangeGuardModal, setShowChangeGuardModal] = useState(false)
   const [selectedPatrol, setSelectedPatrol] = useState(null)
   const [newGuardId, setNewGuardId] = useState(null)
+  const [highlightKey, setHighlightKey] = useState(null)
 
   async function loadData() {
     try {
@@ -69,6 +72,21 @@ export default function UpcomingPatrols() {
     
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const guardId = searchParams.get('highlightGuard')
+    const checkpointId = searchParams.get('highlightCheckpoint')
+    if (!guardId || !checkpointId) return
+
+    const key = `${String(guardId)}::${String(checkpointId)}`
+    setHighlightKey(key)
+
+    const timer = setTimeout(() => {
+      setHighlightKey(null)
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [searchParams])
 
   // Get unassigned checkpoints
   function getUnassignedCheckpoints() {
@@ -293,7 +311,11 @@ export default function UpcomingPatrols() {
                   {patrol.checkpoints.map(cp => (
                     <div
                       key={cp.checkpointId}
-                      className="flex items-center justify-between p-3 rounded-lg bg-[color:var(--panel)] border border-[color:var(--border)]"
+                      className={`flex items-center justify-between p-3 rounded-lg bg-[color:var(--panel)] border transition-all ${
+                        highlightKey === `${String(patrol.guardId)}::${String(cp.checkpointId)}`
+                          ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent)]/35 shadow-[0_0_0_1px_var(--accent)] animate-pulse'
+                          : 'border-[color:var(--border)]'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         {cp.status === 'completed' ? (

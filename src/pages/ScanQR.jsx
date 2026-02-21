@@ -708,14 +708,20 @@ export default function ScanQR() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-lg transition-colors ${
-                darkMode 
-                  ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400' 
-                  : 'bg-blue-100 hover:bg-blue-200 text-blue-600'
-              }`}
+              className="theme-toggle-pro theme-toggle-guard"
+              data-theme={darkMode ? 'dark' : 'light'}
               aria-label="Toggle theme"
+              aria-pressed={darkMode}
             >
-              {darkMode ? <IconSun size={20} /> : <IconMoon size={20} />}
+              <span className="theme-toggle-ring" />
+              <span className="theme-toggle-core" />
+              <span className="theme-toggle-particle theme-toggle-p1" />
+              <span className="theme-toggle-particle theme-toggle-p2" />
+              <span className="theme-toggle-particle theme-toggle-p3" />
+              <span className="theme-toggle-icon-wrap">
+                <IconSun size={17} className="theme-toggle-icon theme-toggle-sun" />
+                <IconMoon size={17} className="theme-toggle-icon theme-toggle-moon" />
+              </span>
             </button>
             <button
               onClick={restartScanner}

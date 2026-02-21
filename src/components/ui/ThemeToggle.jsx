@@ -38,10 +38,20 @@ export default function ThemeToggle() {
         setDark(next)
         toast.success(`Switched to ${next ? 'dark' : 'light'} mode`)
       }}
-      className="p-2 rounded-lg hover:bg-[color:var(--bg-muted)] transition"
+      className="theme-toggle-pro"
+      data-theme={dark ? 'dark' : 'light'}
       aria-label="Toggle theme"
+      aria-pressed={dark}
     >
-      {dark ? <IconSun size={18} className="text-yellow-400" /> : <IconMoon size={18} className="text-blue-600" />}
+      <span className="theme-toggle-ring" />
+      <span className="theme-toggle-core" />
+      <span className="theme-toggle-particle theme-toggle-p1" />
+      <span className="theme-toggle-particle theme-toggle-p2" />
+      <span className="theme-toggle-particle theme-toggle-p3" />
+      <span className="theme-toggle-icon-wrap">
+        <IconSun size={17} className="theme-toggle-icon theme-toggle-sun" />
+        <IconMoon size={17} className="theme-toggle-icon theme-toggle-moon" />
+      </span>
     </button>
   )
 }
