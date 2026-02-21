@@ -72,7 +72,7 @@ export async function assignCheckpointsToGuard(guardId, checkpointIds) {
   const guard = await Guard.findByPk(guardId)
   if (!guard) return false
   
-  const resetDates = guard.checkpointResetDates || {}
+  const resetDates = { ...(guard.checkpointResetDates || {}) }
   
   // Set reset date for each checkpoint
   checkpointIds.forEach(cpId => {
@@ -83,6 +83,8 @@ export async function assignCheckpointsToGuard(guardId, checkpointIds) {
   
   guard.assignedCheckpoints = checkpointIds
   guard.checkpointResetDates = resetDates
+  guard.changed('assignedCheckpoints', true)
+  guard.changed('checkpointResetDates', true)
   
   await guard.save()
   return true
@@ -93,9 +95,10 @@ export async function resetCheckpointAssignment(guardId, checkpointId) {
   const guard = await Guard.findByPk(guardId)
   if (!guard) return false
   
-  const resetDates = guard.checkpointResetDates || {}
+  const resetDates = { ...(guard.checkpointResetDates || {}) }
   resetDates[checkpointId] = new Date().toISOString()
   guard.checkpointResetDates = resetDates
+  guard.changed('checkpointResetDates', true)
   
   await guard.save()
   return true
