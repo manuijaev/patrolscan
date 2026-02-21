@@ -498,6 +498,19 @@ export default function ScanQR() {
             isDesignated = false
             errorMessage = err.response?.data?.message || 'Not designated for this checkpoint'
             // Don't save to offline - not designated scans are not reported
+          } else if (err.response?.data?.result === 'failed') {
+            // Validation failed on server (distance/accuracy). Show failure immediately.
+            const reason =
+              err.response?.data?.failureReason ||
+              'Scan did not meet location/accuracy requirements. Please move closer and try again.'
+            setShowTick(false)
+            setShowCross(true)
+            setScanState('cooldown')
+            toast.error(reason)
+            localStorage.setItem('scanResult', 'failed')
+            localStorage.setItem('scanTimestamp', Date.now().toString())
+            startCooldown(FAIL_COOLDOWN_MS)
+            return
           } else {
             // Save offline if server fails (for other errors like network issues)
             await saveOfflineScan(scanPayload)

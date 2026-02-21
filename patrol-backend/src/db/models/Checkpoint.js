@@ -14,6 +14,26 @@ const Checkpoint = sequelize.define('Checkpoint', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  latitude: {
+    type: DataTypes.DOUBLE,
+    allowNull: true
+  },
+  longitude: {
+    type: DataTypes.DOUBLE,
+    allowNull: true
+  },
+  allowed_radius: {
+    type: DataTypes.DOUBLE,
+    allowNull: true
+  },
+  gps_accuracy_at_creation: {
+    type: DataTypes.DOUBLE,
+    allowNull: true
+  },
+  created_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   qrCode: {
     type: DataTypes.STRING,
     allowNull: true
