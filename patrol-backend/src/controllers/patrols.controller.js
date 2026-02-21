@@ -14,7 +14,7 @@ export async function getPatrolAssignments(req, res) {
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
-    const assignments = guards
+    const assignments = await Promise.all(guards
       .filter(g => g.assignedCheckpoints && g.assignedCheckpoints.length > 0)
       .map(async guard => {
         const assigned = await Promise.all((guard.assignedCheckpoints || []).map(async cpId => {
@@ -24,7 +24,23 @@ export async function getPatrolAssignments(req, res) {
           const resetDate = await getCheckpointResetDate(guard.id, cpId)
           const resetDateObj = resetDate ? new Date(resetDate) : null
           
-          // Check if guard has scanned this checkpoint after the reset date
+          // Check if this checkpoint was reset today (reassigned today)
+          // If so, always show as pending regardless of scans - this makes Reassign work immediately
+          const isResetToday = resetDateObj && 
+            resetDateObj.toDateString() === new Date().toDateString()
+          
+          if (isResetToday) {
+            return {
+              id: cpId,
+              checkpointId: cpId,
+              name: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
+              location: checkpoint ? checkpoint.location : '',
+              status: 'pending',
+              completedAt: null
+            }
+          }
+          
+          // Check if guard has scanned this checkpoint after the reset date (or if no reset date)
           const scannedAfterReset = scans.some(
             s => Number(s.guardId) === Number(guard.id) && 
                 String(s.checkpointId) === String(cpId) && 
@@ -54,10 +70,9 @@ export async function getPatrolAssignments(req, res) {
           totalAssigned: assigned.length,
           completedToday: assigned.filter(a => a.status === 'completed').length
         }
-      })
+      }))
     
-    const results = await Promise.all(assignments)
-    res.json(results)
+    res.json(assignments)
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
