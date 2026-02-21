@@ -1,10 +1,18 @@
 // Scans controller
-import { getAll as getAllScansData, create as createScanData, getByGuardId, getByCheckpointId, getByDateRange as getByDateRangeData, create, remove as removeScanData } from '../data/scans.js'
+import { 
+  getAllScans, 
+  createScan as dbCreateScan, 
+  getScansByGuardId, 
+  getScansByCheckpointId, 
+  getScansByDateRange as getScansByDateRangeDb,
+  deleteScan 
+} from '../db/models/index.js'
+import { getGuardWithCheckpoints } from '../db/models/index.js'
 
 // List all scans (admin)
 export async function getAll(req, res) {
   try {
-    const scans = await getAllScansData()
+    const scans = await getAllScans()
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -15,7 +23,7 @@ export async function getAll(req, res) {
 export async function getByGuard(req, res) {
   try {
     const { guardId } = req.user
-    const scans = await getByGuardId(guardId)
+    const scans = await getScansByGuardId(guardId)
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -26,7 +34,7 @@ export async function getByGuard(req, res) {
 export async function getByDateRange(req, res) {
   try {
     const { startDate, endDate } = req.query
-    const scans = await getByDateRangeData(startDate, endDate)
+    const scans = await getScansByDateRangeDb(startDate, endDate)
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -45,9 +53,7 @@ export async function recordScan(req, res) {
     }
     
     // Check if guard is designated for this checkpoint (has it assigned)
-    const { getGuards } = await import('../data/users.js')
-    const guards = getGuards()
-    const guard = guards.find(g => Number(g.id) === Number(guardId))
+    const guard = await getGuardWithCheckpoints(guardId)
     
     // Use loose comparison to handle both string and number formats
     const isDesignated = guard && guard.assignedCheckpoints && 
@@ -61,7 +67,7 @@ export async function recordScan(req, res) {
       })
     }
     
-    const scan = await createScanData({
+    const scan = await dbCreateScan({
       guardId,
       checkpointId,
       location: location || null,
@@ -71,7 +77,7 @@ export async function recordScan(req, res) {
     })
     
     res.status(201).json({
-      ...scan,
+      ...scan.toJSON(),
       designated: true,
       result: 'passed'
     })
@@ -84,7 +90,7 @@ export async function recordScan(req, res) {
 export async function remove(req, res) {
   try {
     const { id } = req.params
-    await removeScanData(Number(id))
+    await deleteScan(id)
     res.json({ message: 'Scan removed' })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -94,7 +100,7 @@ export async function remove(req, res) {
 // Legacy function for patrols route
 export async function listScans(req, res) {
   try {
-    const scans = await getAllScansData()
+    const scans = await getAllScans()
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -110,7 +116,7 @@ export async function createScan(req, res) {
       return res.status(400).json({ message: 'guardId and checkpointId are required' })
     }
     
-    const scan = await createScanData({
+    const scan = await dbCreateScan({
       guardId,
       checkpointId,
       location: location || null,

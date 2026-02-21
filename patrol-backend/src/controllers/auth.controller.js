@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcrypt'
-import { admins, getGuards } from '../data/users.js'
+import { getAdminByEmail, getGuardByName, getAllGuards } from '../db/models/index.js'
 
 function generateToken(user) {
   return jwt.sign(
@@ -13,7 +13,7 @@ function generateToken(user) {
 export async function adminLogin(req, res) {
   const { email, password } = req.body
 
-  const admin = admins.find(a => a.email === email)
+  const admin = await getAdminByEmail(email)
   if (!admin) return res.status(401).json({ message: 'Invalid credentials' })
 
   const match = await bcrypt.compare(password, admin.password)
@@ -30,12 +30,19 @@ export async function guardLogin(req, res) {
     return res.status(400).json({ message: 'Username and PIN are required' })
   }
 
-  const guards = getGuards()
-  
   // Find guard by username (case-insensitive)
-  const guard = guards.find(g => 
-    g.name.toLowerCase() === username.toLowerCase().trim()
-  )
+  const guard = await getGuardByName(username.trim())
+  
+  // Also try to find by scanning all guards if exact match fails
+  if (!guard) {
+    const allGuards = await getAllGuards()
+    const found = allGuards.find(g => 
+      g.name.toLowerCase() === username.toLowerCase().trim()
+    )
+    if (found) {
+      return res.status(401).json({ message: 'Invalid username or PIN' })
+    }
+  }
 
   if (!guard) {
     return res.status(401).json({ message: 'Invalid username or PIN' })

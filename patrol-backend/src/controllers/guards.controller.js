@@ -1,9 +1,18 @@
-import { getGuards, addGuard, updateGuard, deleteGuard, assignCheckpoints, getGuardsWithCheckpoints, unassignCheckpoint } from '../data/users.js'
-import { getAll as getAllScans } from '../data/scans.js'
-import { getAll as getAllCheckpoints } from '../data/checkpoints.js'
+import bcrypt from 'bcrypt'
+import { 
+  getAllGuards, 
+  createGuard as dbCreateGuard, 
+  updateGuard as dbUpdateGuard, 
+  deleteGuard as dbDeleteGuard, 
+  assignCheckpointsToGuard, 
+  getGuardsWithCheckpoints, 
+  unassignCheckpoint as dbUnassignCheckpoint 
+} from '../db/models/index.js'
+import { getAllScans } from '../db/models/index.js'
+import { getAllCheckpoints } from '../db/models/index.js'
 
 export async function listGuards(req, res) {
-  const guards = getGuardsWithCheckpoints()
+  const guards = await getGuardsWithCheckpoints()
   const scans = await getAllScans()
   const checkpoints = await getAllCheckpoints()
   
@@ -13,7 +22,7 @@ export async function listGuards(req, res) {
   // Get checkpoints completed today for each guard
   const guardsWithStatus = guards.map(g => {
     const guardScans = scans.filter(s => 
-      s.guardId === g.id && 
+      Number(s.guardId) === Number(g.id) && 
       new Date(s.scannedAt) >= startOfToday &&
       s.result !== 'failed'
     )
@@ -31,7 +40,7 @@ export async function listGuards(req, res) {
   res.json(guardsWithStatus)
 }
 
-export function createGuard(req, res) {
+export async function createGuard(req, res) {
   const { name, pin } = req.body
 
   if (!name || typeof name !== 'string') {
@@ -42,7 +51,8 @@ export function createGuard(req, res) {
     return res.status(400).json({ message: 'PIN must be 4 digits' })
   }
 
-  const guard = addGuard({ name: name.trim(), pin })
+  const hashedPin = bcrypt.hashSync(pin, 10)
+  const guard = await dbCreateGuard({ name: name.trim(), pin: hashedPin })
 
   return res.status(201).json({
     id: guard.id,
@@ -52,7 +62,7 @@ export function createGuard(req, res) {
   })
 }
 
-export function updateGuardController(req, res) {
+export async function updateGuardController(req, res) {
   const { id } = req.params
   const { name, pin } = req.body
 
@@ -64,19 +74,24 @@ export function updateGuardController(req, res) {
     return res.status(400).json({ message: 'PIN must be 4 digits if provided' })
   }
 
-  const success = updateGuard(Number(id), { name: name.trim(), pin })
+  const updates = { name: name.trim() }
+  if (pin) {
+    updates.pin = bcrypt.hashSync(pin, 10)
+  }
 
-  if (!success) {
+  const guard = await dbUpdateGuard(Number(id), updates)
+
+  if (!guard) {
     return res.status(404).json({ message: 'Guard not found' })
   }
 
   return res.json({ message: 'Guard updated successfully' })
 }
 
-export function removeGuard(req, res) {
+export async function removeGuard(req, res) {
   const { id } = req.params
   
-  const success = deleteGuard(Number(id))
+  const success = await dbDeleteGuard(Number(id))
   
   if (!success) {
     return res.status(404).json({ message: 'Guard not found' })
@@ -85,7 +100,7 @@ export function removeGuard(req, res) {
   return res.json({ message: 'Guard deleted successfully' })
 }
 
-export function assignCheckpointsController(req, res) {
+export async function assignCheckpointsController(req, res) {
   const { id } = req.params
   const { checkpointIds } = req.body
 
@@ -98,7 +113,7 @@ export function assignCheckpointsController(req, res) {
     return res.status(400).json({ message: 'Please select at least one checkpoint to assign' })
   }
 
-  const success = assignCheckpoints(Number(id), checkpointIds)
+  const success = await assignCheckpointsToGuard(Number(id), checkpointIds)
 
   if (!success) {
     return res.status(404).json({ message: 'Guard not found' })
@@ -110,7 +125,7 @@ export function assignCheckpointsController(req, res) {
 export async function unassignCheckpointController(req, res) {
   const { id, checkpointId } = req.params
 
-  const success = await unassignCheckpoint(Number(id), checkpointId)
+  const success = await dbUnassignCheckpoint(Number(id), checkpointId)
 
   if (!success) {
     return res.status(404).json({ message: 'Guard or checkpoint not found' })

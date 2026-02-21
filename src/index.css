@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Configure Tailwind v4 dark mode to use class-based approach */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-bg: #f6f8fb;
   --color-bg-muted: #eef2f7;

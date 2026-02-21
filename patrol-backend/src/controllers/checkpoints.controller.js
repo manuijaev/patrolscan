@@ -1,9 +1,9 @@
-import * as checkpoints from '../data/checkpoints.js'
+import * as checkpointsDb from '../db/models/index.js'
 
 // Get all checkpoints
 export const getAll = async (req, res) => {
   try {
-    const allCheckpoints = await checkpoints.getAll()
+    const allCheckpoints = await checkpointsDb.getAllCheckpoints()
     res.json(allCheckpoints)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch checkpoints' })
@@ -13,7 +13,7 @@ export const getAll = async (req, res) => {
 // Get checkpoint by ID
 export const getById = async (req, res) => {
   try {
-    const checkpoint = await checkpoints.getById(req.params.id)
+    const checkpoint = await checkpointsDb.getCheckpointById(req.params.id)
     if (!checkpoint) {
       return res.status(404).json({ error: 'Checkpoint not found' })
     }
@@ -53,7 +53,7 @@ export const create = async (req, res) => {
       })
     }
 
-    const newCheckpoint = await checkpoints.create({
+    const newCheckpoint = await checkpointsDb.createCheckpoint({
       name,
       location: location || '',
       description: description || '',
@@ -75,7 +75,7 @@ export const update = async (req, res) => {
   try {
     const { name, location, description } = req.body
 
-    const updated = await checkpoints.update(req.params.id, {
+    const updated = await checkpointsDb.updateCheckpoint(req.params.id, {
       name,
       location,
       description,
@@ -97,18 +97,17 @@ export const remove = async (req, res) => {
     const checkpointId = req.params.id
     
     // First, remove this checkpoint from all guard assignments
-    const { getGuards, assignCheckpoints } = await import('../data/users.js')
-    const guards = getGuards()
+    const guards = await checkpointsDb.getAllGuards()
     
     for (const guard of guards) {
       if (guard.assignedCheckpoints && guard.assignedCheckpoints.some(id => String(id) === String(checkpointId))) {
         const newAssigned = guard.assignedCheckpoints.filter(id => String(id) !== String(checkpointId))
-        assignCheckpoints(guard.id, newAssigned)
+        await checkpointsDb.assignCheckpointsToGuard(guard.id, newAssigned)
       }
     }
     
     // Then delete the checkpoint from the database
-    const deleted = await checkpoints.remove(checkpointId)
+    const deleted = await checkpointsDb.deleteCheckpoint(checkpointId)
 
     if (!deleted) {
       return res.status(404).json({ error: 'Checkpoint not found' })

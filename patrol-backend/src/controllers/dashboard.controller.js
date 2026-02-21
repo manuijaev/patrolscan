@@ -1,13 +1,13 @@
-import { getAll as getAllScans } from '../data/scans.js'
-import { getAll as getAllCheckpoints } from '../data/checkpoints.js'
-import { getGuardsWithCheckpoints, getCheckpointResetDate } from '../data/users.js'
+import { getAllScans } from '../db/models/index.js'
+import { getAllCheckpoints } from '../db/models/index.js'
+import { getGuardsWithCheckpoints, getCheckpointResetDate } from '../db/models/index.js'
 
 // Get dashboard stats
 export async function getStats(req, res) {
   try {
     const scans = await getAllScans()
     const checkpoints = await getAllCheckpoints()
-    const guards = getGuardsWithCheckpoints()
+    const guards = await getGuardsWithCheckpoints()
     
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -53,7 +53,7 @@ export async function getStats(req, res) {
 export async function getTimeline(req, res) {
   try {
     const scans = await getAllScans()
-    const guards = getGuardsWithCheckpoints()
+    const guards = await getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
     
     const recentScans = scans
@@ -85,7 +85,7 @@ export async function getTimeline(req, res) {
 export async function getGuardPerformance(req, res) {
   try {
     const scans = await getAllScans()
-    const guards = getGuardsWithCheckpoints()
+    const guards = await getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -98,7 +98,7 @@ export async function getGuardPerformance(req, res) {
       const uniqueCheckpointsToday = [...new Set(scansToday.map(s => s.checkpointId))]
       
       // Get checkpoint names for assigned checkpoints
-      const assignedCheckpointNames = guard.assignedCheckpoints
+      const assignedCheckpointNames = (guard.assignedCheckpoints || [])
         .map(cpId => checkpoints.find(cp => cp.id === cpId)?.name)
         .filter(Boolean)
       
@@ -111,7 +111,7 @@ export async function getGuardPerformance(req, res) {
         lastScan: guardScans.length > 0 
           ? guardScans.sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))[0].scannedAt 
           : null,
-        assignedCheckpoints: guard.assignedCheckpoints,
+        assignedCheckpoints: guard.assignedCheckpoints || [],
         assignedCheckpointNames: assignedCheckpointNames
       }
     })
@@ -125,7 +125,7 @@ export async function getGuardPerformance(req, res) {
 // Get upcoming patrols (assigned checkpoints to guards)
 export async function getUpcomingPatrols(req, res) {
   try {
-    const guards = getGuardsWithCheckpoints()
+    const guards = await getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
     const scans = await getAllScans()
     
@@ -135,7 +135,7 @@ export async function getUpcomingPatrols(req, res) {
     const upcomingPatrols = guards
       .filter(g => g.assignedCheckpoints && g.assignedCheckpoints.length > 0)
       .map(guard => {
-        const assigned = guard.assignedCheckpoints.map(cpId => {
+        const assigned = (guard.assignedCheckpoints || []).map(cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
           
           // Get the reset date for this checkpoint

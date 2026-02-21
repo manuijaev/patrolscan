@@ -1,12 +1,12 @@
 // Patrol assignments controller
-import { getGuardsWithCheckpoints, assignCheckpoints, getGuards, getCheckpointResetDate } from '../data/users.js'
-import { getAll as getAllCheckpoints } from '../data/checkpoints.js'
-import { getAll as getAllScans } from '../data/scans.js'
+import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards, getCheckpointResetDate } from '../db/models/index.js'
+import { getAllCheckpoints } from '../db/models/index.js'
+import { getAllScans } from '../db/models/index.js'
 
 // Get all patrol assignments with status
 export async function getPatrolAssignments(req, res) {
   try {
-    const guards = getGuardsWithCheckpoints()
+    const guards = await getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
     const scans = await getAllScans()
     
@@ -16,7 +16,7 @@ export async function getPatrolAssignments(req, res) {
     const assignments = guards
       .filter(g => g.assignedCheckpoints && g.assignedCheckpoints.length > 0)
       .map(guard => {
-        const assigned = guard.assignedCheckpoints.map(cpId => {
+        const assigned = (guard.assignedCheckpoints || []).map(cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
           
           // Get the reset date for this checkpoint
@@ -54,8 +54,6 @@ export async function getPatrolAssignments(req, res) {
           completedToday: assigned.filter(a => a.status === 'completed').length
         }
       })
-      // Don't filter out completed patrols - show them so admins can re-assign if needed
-      // .filter(patrol => patrol.completedToday < patrol.totalAssigned)
     
     res.json(assignments)
   } catch (error) {
@@ -72,8 +70,8 @@ export async function assignPatrolCheckpoint(req, res) {
       return res.status(400).json({ message: 'guardId and checkpointId are required' })
     }
     
-    const guards = getGuards()
-    const guard = guards.find(g => g.id === Number(guardId))
+    const guards = await getAllGuards()
+    const guard = guards.find(g => Number(g.id) === Number(guardId))
     
     if (!guard) {
       return res.status(404).json({ message: 'Guard not found' })
@@ -90,13 +88,13 @@ export async function assignPatrolCheckpoint(req, res) {
     const currentAssigned = guard.assignedCheckpoints || []
     
     // Check if already assigned
-    if (currentAssigned.includes(checkpointId)) {
+    if (currentAssigned.some(id => String(id) === String(checkpointId))) {
       return res.status(400).json({ message: 'Checkpoint already assigned to this guard' })
     }
     
     // Add the new checkpoint
     const newAssigned = [...currentAssigned, checkpointId]
-    assignCheckpoints(Number(guardId), newAssigned)
+    await assignCheckpointsToGuard(Number(guardId), newAssigned)
     
     res.json({ 
       message: 'Checkpoint assigned successfully',
@@ -113,17 +111,17 @@ export async function removePatrolCheckpoint(req, res) {
   try {
     const { guardId, checkpointId } = req.params
     
-    const guards = getGuards()
-    const guard = guards.find(g => g.id === Number(guardId))
+    const guards = await getAllGuards()
+    const guard = guards.find(g => Number(g.id) === Number(guardId))
     
     if (!guard) {
       return res.status(404).json({ message: 'Guard not found' })
     }
     
     const currentAssigned = guard.assignedCheckpoints || []
-    const newAssigned = currentAssigned.filter(id => id !== checkpointId)
+    const newAssigned = currentAssigned.filter(id => String(id) !== String(checkpointId))
     
-    assignCheckpoints(Number(guardId), newAssigned)
+    await assignCheckpointsToGuard(Number(guardId), newAssigned)
     
     res.json({ message: 'Checkpoint removed successfully' })
   } catch (error) {
@@ -140,7 +138,7 @@ export async function reassignPatrolCheckpoint(req, res) {
       return res.status(400).json({ message: 'guardId and checkpointId are required' })
     }
     
-    const guards = getGuards()
+    const guards = await getAllGuards()
     const guard = guards.find(g => Number(g.id) === Number(guardId))
     
     if (!guard) {
@@ -152,12 +150,11 @@ export async function reassignPatrolCheckpoint(req, res) {
     
     if (!currentAssigned.some(id => String(id) === String(checkpointId))) {
       // If not assigned, add it
-      assignCheckpoints(Number(guardId), [...currentAssigned, checkpointId])
+      await assignCheckpointsToGuard(Number(guardId), [...currentAssigned, checkpointId])
     }
     
     // Reset the checkpoint assignment timestamp (without deleting scan history)
-    const { resetCheckpointAssignment } = await import('../data/users.js')
-    await resetCheckpointAssignment(Number(guardId), checkpointId)
+    await getCheckpointResetDate(Number(guardId), checkpointId)
     
     res.json({ 
       message: 'Checkpoint re-assigned successfully. Guard needs to scan it again.',
@@ -178,34 +175,30 @@ export async function updatePatrolAssignment(req, res) {
       return res.status(400).json({ message: 'checkpointId and newGuardId are required' })
     }
     
-    const guards = getGuards()
-    const newGuard = guards.find(g => g.id === Number(newGuardId))
+    const guards = await getAllGuards()
+    const newGuard = guards.find(g => Number(g.id) === Number(newGuardId))
     
     if (!newGuard) {
       return res.status(404).json({ message: 'Guard not found' })
     }
     
     // Remove from current guard(s) and add to new guard
-    guards.forEach(guard => {
+    for (const guard of guards) {
       const currentAssigned = guard.assignedCheckpoints || []
       const hasCheckpoint = currentAssigned.some(id => String(id) === String(checkpointId))
       
-      if (hasCheckpoint && guard.id !== Number(newGuardId)) {
+      if (hasCheckpoint && Number(guard.id) !== Number(newGuardId)) {
         // Remove from current guard
         const newAssigned = currentAssigned.filter(id => String(id) !== String(checkpointId))
-        assignCheckpoints(guard.id, newAssigned)
+        await assignCheckpointsToGuard(guard.id, newAssigned)
       }
-    })
+    }
     
     // Add to new guard if not already assigned
     const newGuardCurrentAssigned = newGuard.assignedCheckpoints || []
     if (!newGuardCurrentAssigned.some(id => String(id) === String(checkpointId))) {
-      assignCheckpoints(Number(newGuardId), [...newGuardCurrentAssigned, checkpointId])
+      await assignCheckpointsToGuard(Number(newGuardId), [...newGuardCurrentAssigned, checkpointId])
     }
-    
-    // Reset the checkpoint assignment timestamp for the new guard (without deleting scan history)
-    const { resetCheckpointAssignment } = await import('../data/users.js')
-    await resetCheckpointAssignment(Number(newGuardId), checkpointId)
     
     res.json({ 
       message: 'Checkpoint assignment updated successfully',

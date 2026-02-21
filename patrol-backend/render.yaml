@@ -3,10 +3,32 @@ services:
     name: patrol-backend
     env: node
     buildCommand: npm install
-    startCommand: npm run dev
+    startCommand: npm run start
     envVars:
       - key: NODE_ENV
-        value: development
+        value: production
       - key: JWT_SECRET
         generateValue: true
-    healthCheckPath: /
+      - key: DB_HOST
+        fromDatabase:
+          name: patrol-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: patrol-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: patrol-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: patrol-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: patrol-db
+          property: password
+    databases:
+      - name: patrol-db
+        plan: free
