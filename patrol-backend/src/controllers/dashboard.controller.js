@@ -23,6 +23,8 @@ function getAdminNotificationState(adminId) {
     notificationStateByAdmin.set(adminId, {
       readIds: new Set(),
       ackIds: new Set(),
+      deletedIds: new Set(),
+      resetAt: null,
       updatedAt: new Date().toISOString(),
     })
   }
@@ -485,9 +487,46 @@ export async function getNotifications(req, res) {
       })
     }
 
+    // 4) Successful scans (informational/other)
+    const successfulScans = scans
+      .filter(s => new Date(s.scannedAt) >= oneDayAgo && s.result !== 'failed')
+      .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))
+
+    for (const scan of successfulScans.slice(0, 15)) {
+      const guardId = Number(scan.guardId)
+      const checkpointId = String(scan.checkpointId)
+      const guardName = guardNameById.get(guardId) || `Guard #${guardId}`
+      const checkpoint = checkpointById.get(checkpointId)
+      const checkpointName = checkpoint?.name || checkpointId
+
+      notifications.push({
+        id: `success-${scan.id}`,
+        type: 'successful_scan',
+        severity: 'other',
+        title: 'Successful Scan',
+        detail: `${guardName} successfully scanned ${checkpointName}.`,
+        time: scan.scannedAt,
+        unread: true,
+        action: {
+          path: '/reports',
+          label: 'Open Reports',
+          params: {
+            guardId: String(guardId),
+            checkpointId: String(checkpointId),
+          },
+        },
+      })
+    }
+
     const state = getAdminNotificationState(adminId)
+    const resetAt = state.resetAt ? new Date(state.resetAt) : null
     const sorted = notifications
       .sort((a, b) => new Date(b.time) - new Date(a.time))
+      .filter(item => {
+        if (state.deletedIds.has(item.id)) return false
+        if (resetAt && new Date(item.time) <= resetAt) return false
+        return true
+      })
       .slice(0, 25)
       .map(item => ({
         ...item,
@@ -509,6 +548,8 @@ export async function getNotificationState(req, res) {
     res.json({
       readIds: [...state.readIds],
       ackIds: [...state.ackIds],
+      deletedIds: [...state.deletedIds],
+      resetAt: state.resetAt,
       updatedAt: state.updatedAt,
     })
   } catch (error) {
@@ -519,7 +560,7 @@ export async function getNotificationState(req, res) {
 export async function updateNotificationState(req, res) {
   try {
     const adminId = Number(req.user?.id || 0)
-    const { reads = [], acks = [] } = req.body || {}
+    const { reads = [], acks = [], deletes = [], resetAll = false } = req.body || {}
     const state = getAdminNotificationState(adminId)
 
     for (const id of reads) {
@@ -532,12 +573,27 @@ export async function updateNotificationState(req, res) {
         state.ackIds.add(id)
       }
     }
+    for (const id of deletes) {
+      if (typeof id === 'string' && id.trim()) {
+        state.deletedIds.add(id)
+        state.readIds.add(id)
+        state.ackIds.add(id)
+      }
+    }
+    if (resetAll) {
+      state.resetAt = new Date().toISOString()
+      state.readIds.clear()
+      state.ackIds.clear()
+      state.deletedIds.clear()
+    }
     state.updatedAt = new Date().toISOString()
 
     res.json({
       message: 'Notification state updated',
       readIds: [...state.readIds],
       ackIds: [...state.ackIds],
+      deletedIds: [...state.deletedIds],
+      resetAt: state.resetAt,
       updatedAt: state.updatedAt,
     })
   } catch (error) {

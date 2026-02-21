@@ -5,16 +5,18 @@ import {
   IconBell,
   IconCheck,
   IconChevronRight,
+  IconCircleCheck,
   IconShieldLock,
-  IconTargetArrow
+  IconTargetArrow,
+  IconTrash
 } from '@tabler/icons-react'
 import { toast } from 'react-hot-toast'
 import api from '../../api/axios'
 import { getToken } from '../../auth/authStore'
 
-const CACHE_KEY = 'admin_notifications_cache_v2'
-const STATE_KEY = 'admin_notifications_state_v2'
-const QUEUE_KEY = 'admin_notifications_sync_queue_v2'
+const CACHE_KEY = 'admin_notifications_cache_v3'
+const STATE_KEY = 'admin_notifications_state_v3'
+const QUEUE_KEY = 'admin_notifications_sync_queue_v3'
 const CRITICAL_SOUND_URL = '/sounds/public/critical-alert.mp3'
 const STANDARD_SOUND_URL = '/sounds/public/notification-soft.mp3'
 
@@ -31,104 +33,17 @@ function writeJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch {
-    // Ignore storage failures
+    // ignore
   }
 }
 
-function playCriticalNotificationSound() {
-  try {
-    const audio = new Audio(CRITICAL_SOUND_URL)
-    audio.preload = 'auto'
-    audio.volume = 0.75
-    audio.play().catch(() => {
-      playCriticalFallbackTone()
-    })
-  } catch {
-    playCriticalFallbackTone()
-  }
-}
-
-function playCriticalFallbackTone() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-    const now = ctx.currentTime
-
-    const tone = (frequency, start, duration, gainValue) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'triangle'
-      osc.frequency.value = frequency
-      gain.gain.value = 0.0001
-
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-
-      gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
-
-      osc.start(start)
-      osc.stop(start + duration + 0.02)
-    }
-
-    tone(880, now + 0.02, 0.12, 0.08)
-    tone(1175, now + 0.18, 0.14, 0.075)
-    setTimeout(() => {
-      try {
-        ctx.close()
-      } catch {
-        // no-op
-      }
-    }, 650)
-  } catch {
-    // no-op
-  }
-}
-
-function playStandardNotificationSound() {
-  try {
-    const audio = new Audio(STANDARD_SOUND_URL)
-    audio.preload = 'auto'
-    audio.volume = 0.5
-    audio.play().catch(() => {
-      playStandardFallbackTone()
-    })
-  } catch {
-    playStandardFallbackTone()
-  }
-}
-
-function playStandardFallbackTone() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-    const now = ctx.currentTime
-
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = 740
-    gain.gain.value = 0.0001
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-
-    gain.gain.exponentialRampToValueAtTime(0.05, now + 0.015)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11)
-    osc.start(now + 0.01)
-    osc.stop(now + 0.12)
-
-    setTimeout(() => {
-      try {
-        ctx.close()
-      } catch {
-        // no-op
-      }
-    }, 300)
-  } catch {
-    // no-op
-  }
+function formatTimeAgo(timeAgoMinutes) {
+  if (timeAgoMinutes <= 0) return 'Just now'
+  if (timeAgoMinutes < 60) return `${timeAgoMinutes}m ago`
+  const hours = Math.floor(timeAgoMinutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
 export default function NotificationBell() {
@@ -139,8 +54,9 @@ export default function NotificationBell() {
   const [filter, setFilter] = useState('all')
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const panelRef = useRef(null)
-  const previousCriticalUnreadIdsRef = useRef(new Set())
-  const previousNonCriticalUnreadIdsRef = useRef(new Set())
+  const previousUnreadIdsRef = useRef(new Set())
+  const criticalAudioRef = useRef(null)
+  const standardAudioRef = useRef(null)
 
   const unreadCount = useMemo(
     () => items.filter(item => item.unread).length,
@@ -151,6 +67,7 @@ export default function NotificationBell() {
     return {
       critical: items.filter(i => i.unread && i.severity === 'critical').length,
       warning: items.filter(i => i.unread && i.severity === 'warning').length,
+      other: items.filter(i => i.unread && i.severity === 'other').length,
     }
   }, [items])
 
@@ -158,17 +75,9 @@ export default function NotificationBell() {
     if (filter === 'unread') return items.filter(item => item.unread)
     if (filter === 'critical') return items.filter(item => item.severity === 'critical')
     if (filter === 'warning') return items.filter(item => item.severity === 'warning')
+    if (filter === 'other') return items.filter(item => item.severity === 'other')
     return items
   }, [items, filter])
-
-  function formatTimeAgo(timeAgoMinutes) {
-    if (timeAgoMinutes <= 0) return 'Just now'
-    if (timeAgoMinutes < 60) return `${timeAgoMinutes}m ago`
-    const hours = Math.floor(timeAgoMinutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
 
   function getSeverityClasses(severity) {
     if (severity === 'critical') {
@@ -184,6 +93,7 @@ export default function NotificationBell() {
     if (type === 'repeated_location_failures') return <IconTargetArrow size={15} className="text-red-500" />
     if (type === 'unauthorized_attempt') return <IconShieldLock size={15} className="text-red-500" />
     if (type === 'reassign_needed') return <IconAlertTriangle size={15} className="text-amber-500" />
+    if (type === 'successful_scan') return <IconCircleCheck size={15} className="text-green-500" />
     return <IconBell size={15} className="text-blue-500" />
   }
 
@@ -233,8 +143,82 @@ export default function NotificationBell() {
     return [...groups.values()].sort((a, b) => new Date(b.time) - new Date(a.time))
   }
 
+  function playCriticalFallbackTone() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const now = ctx.currentTime
+      const tone = (frequency, start, duration, gainValue) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'triangle'
+        osc.frequency.value = frequency
+        gain.gain.value = 0.0001
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.015)
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+        osc.start(start)
+        osc.stop(start + duration + 0.02)
+      }
+      tone(880, now + 0.01, 0.12, 0.08)
+      tone(1175, now + 0.16, 0.14, 0.07)
+      setTimeout(() => ctx.close().catch(() => {}), 550)
+    } catch {
+      // no-op
+    }
+  }
+
+  function playStandardFallbackTone() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const now = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = 720
+      gain.gain.value = 0.0001
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1)
+      osc.start(now + 0.01)
+      osc.stop(now + 0.11)
+      setTimeout(() => ctx.close().catch(() => {}), 250)
+    } catch {
+      // no-op
+    }
+  }
+
+  function playCriticalNotificationSound() {
+    try {
+      const audio = criticalAudioRef.current
+      if (!audio) return playCriticalFallbackTone()
+      audio.currentTime = 0
+      audio.volume = 0.8
+      audio.play().catch(() => playCriticalFallbackTone())
+    } catch {
+      playCriticalFallbackTone()
+    }
+  }
+
+  function playStandardNotificationSound() {
+    try {
+      const audio = standardAudioRef.current
+      if (!audio) return playStandardFallbackTone()
+      audio.currentTime = 0
+      audio.volume = 0.55
+      audio.play().catch(() => playStandardFallbackTone())
+    } catch {
+      playStandardFallbackTone()
+    }
+  }
+
   function getLocalState() {
-    return readJson(STATE_KEY, { reads: [], acks: [] })
+    return readJson(STATE_KEY, { reads: [], acks: [], deletedIds: [], resetAt: null })
   }
 
   function saveLocalState(state) {
@@ -249,24 +233,27 @@ export default function NotificationBell() {
 
   async function flushSyncQueue() {
     const queue = readJson(QUEUE_KEY, [])
-    if (!queue.length) return
-    if (!navigator.onLine) return
+    if (!queue.length || !navigator.onLine) return
 
     const reads = []
     const acks = []
+    const deletes = []
+    let shouldResetAll = false
     for (const action of queue) {
       if (action.type === 'read' && action.id) reads.push(action.id)
       if (action.type === 'ack' && action.id) acks.push(action.id)
+       if (action.type === 'delete' && action.id) deletes.push(action.id)
       if (action.type === 'read_all' && Array.isArray(action.ids)) {
         reads.push(...action.ids)
       }
+      if (action.type === 'reset_all') shouldResetAll = true
     }
 
     try {
       const token = getToken()
       await api.post(
         '/dashboard/notifications/state',
-        { reads, acks },
+        { reads, acks, deletes, resetAll: shouldResetAll },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       writeJson(QUEUE_KEY, [])
@@ -279,43 +266,118 @@ export default function NotificationBell() {
     const localState = getLocalState()
     const readSet = new Set(localState.reads || [])
     const ackSet = new Set(localState.acks || [])
-    return serverItems.map(item => ({
-      ...item,
-      unread: !readSet.has(item.id) && item.unread !== false,
-      acknowledged: ackSet.has(item.id) || !!item.acknowledged,
-    }))
+    const deletedSet = new Set(localState.deletedIds || [])
+    const resetAt = localState.resetAt ? new Date(localState.resetAt) : null
+    return serverItems
+      .filter(item => {
+        if (deletedSet.has(item.id)) return false
+        if (resetAt && new Date(item.time) <= resetAt) return false
+        return true
+      })
+      .map(item => ({
+        ...item,
+        unread: !readSet.has(item.id) && item.unread !== false,
+        acknowledged: ackSet.has(item.id) || !!item.acknowledged,
+      }))
   }
 
-  function markRead(id) {
-    setItems(prev => prev.map(n => (n.id === id ? { ...n, unread: false } : n)))
+  function markIdsRead(ids, syncNow = false) {
+    if (!ids.length) return
+    setItems(prev => prev.map(item => (ids.includes(item.id) ? { ...item, unread: false } : item)))
     const state = getLocalState()
     const reads = new Set(state.reads || [])
-    reads.add(id)
+    ids.forEach(id => reads.add(id))
     saveLocalState({ ...state, reads: [...reads] })
-    queueSyncAction({ type: 'read', id })
+    queueSyncAction({ type: 'read_all', ids })
+    if (syncNow) {
+      flushSyncQueue()
+    }
   }
 
-  function acknowledge(id) {
+  function acknowledge(itemId) {
     setItems(prev =>
-      prev.map(n => (n.id === id ? { ...n, unread: false, acknowledged: true } : n))
+      prev.map(n => (n.id === itemId ? { ...n, unread: false, acknowledged: true } : n))
     )
     const state = getLocalState()
     const reads = new Set(state.reads || [])
     const acks = new Set(state.acks || [])
-    reads.add(id)
-    acks.add(id)
+    reads.add(itemId)
+    acks.add(itemId)
     saveLocalState({ ...state, reads: [...reads], acks: [...acks] })
-    queueSyncAction({ type: 'read', id })
-    queueSyncAction({ type: 'ack', id })
+    queueSyncAction({ type: 'read', id: itemId })
+    queueSyncAction({ type: 'ack', id: itemId })
+    setOpen(false)
+    flushSyncQueue()
+  }
+
+  function deleteNotification(itemId) {
+    setItems(prev => prev.filter(item => item.id !== itemId))
+    const state = getLocalState()
+    const reads = new Set(state.reads || [])
+    const acks = new Set(state.acks || [])
+    const deletedIds = new Set(state.deletedIds || [])
+    reads.add(itemId)
+    acks.add(itemId)
+    deletedIds.add(itemId)
+    saveLocalState({
+      ...state,
+      reads: [...reads],
+      acks: [...acks],
+      deletedIds: [...deletedIds],
+    })
+    queueSyncAction({ type: 'delete', id: itemId })
+    flushSyncQueue()
+  }
+
+  function resetNotifications() {
+    const nowIso = new Date().toISOString()
+    setItems([])
+    const state = getLocalState()
+    saveLocalState({
+      ...state,
+      reads: [],
+      acks: [],
+      deletedIds: [],
+      resetAt: nowIso,
+    })
+    queueSyncAction({ type: 'reset_all' })
+    setOpen(false)
+    flushSyncQueue()
+    toast.success('Notifications reset')
   }
 
   function openNotification(item) {
-    markRead(item.id)
+    markIdsRead([item.id], true)
     const path = buildActionPath(item)
     if (path) {
       setOpen(false)
       navigate(path)
     }
+  }
+
+  function showIncomingPopup(item) {
+    const toastId = `incoming-${item.id}`
+    toast.custom(
+      () => (
+        <button
+          onClick={() => {
+            toast.dismiss(toastId)
+            setOpen(true)
+            setFilter('all')
+          }}
+          className={`w-[min(92vw,420px)] rounded-xl border px-4 py-3 text-left shadow-[var(--shadow)] bg-[color:var(--panel)] transition ${getSeverityClasses(item.severity)}`}
+        >
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5">{getTypeIcon(item.type)}</span>
+            <div>
+              <p className="text-sm font-semibold">{item.title}</p>
+              <p className="text-xs text-[color:var(--text-muted)] mt-1 line-clamp-2">{item.detail}</p>
+            </div>
+          </div>
+        </button>
+      ),
+      { id: toastId, duration: 1000 }
+    )
   }
 
   async function loadNotifications() {
@@ -333,11 +395,18 @@ export default function NotificationBell() {
       const serverState = {
         reads: stateRes.data?.readIds || [],
         acks: stateRes.data?.ackIds || [],
+        deletedIds: stateRes.data?.deletedIds || [],
+        resetAt: stateRes.data?.resetAt || null,
       }
       const localState = getLocalState()
+      const serverReset = serverState.resetAt ? new Date(serverState.resetAt).getTime() : 0
+      const localReset = localState.resetAt ? new Date(localState.resetAt).getTime() : 0
+      const mergedResetAt = serverReset >= localReset ? serverState.resetAt : localState.resetAt
       const mergedState = {
         reads: [...new Set([...(serverState.reads || []), ...(localState.reads || [])])],
         acks: [...new Set([...(serverState.acks || []), ...(localState.acks || [])])],
+        deletedIds: [...new Set([...(serverState.deletedIds || []), ...(localState.deletedIds || [])])],
+        resetAt: mergedResetAt || null,
       }
       saveLocalState(mergedState)
 
@@ -347,60 +416,70 @@ export default function NotificationBell() {
       writeJson(CACHE_KEY, groupedItems)
       setLastUpdatedAt(new Date().toISOString())
 
-      const criticalUnread = new Set(
-        groupedItems
-          .filter(item => item.severity === 'critical' && item.unread)
-          .map(item => item.id)
-      )
-      const nonCriticalUnread = new Set(
-        groupedItems
-          .filter(item => item.severity !== 'critical' && item.unread)
-          .map(item => item.id)
-      )
-      const previous = previousCriticalUnreadIdsRef.current
-      const hasNewCritical = [...criticalUnread].some(id => !previous.has(id))
-      const latestNewCritical = groupedItems.find(
-        item => item.severity === 'critical' && item.unread && !previous.has(item.id)
-      )
-      const previousNonCritical = previousNonCriticalUnreadIdsRef.current
-      const hasNewNonCritical = [...nonCriticalUnread].some(id => !previousNonCritical.has(id))
+      const unreadIds = new Set(groupedItems.filter(item => item.unread).map(item => item.id))
+      const previousUnread = previousUnreadIdsRef.current
+      const newItems = groupedItems.filter(item => item.unread && !previousUnread.has(item.id))
+      const hasNewCritical = newItems.some(item => item.severity === 'critical')
+      const hasNewNonCritical = newItems.some(item => item.severity !== 'critical')
+
       if (hasNewCritical) {
         playCriticalNotificationSound()
-        if (location.pathname === '/dashboard' && latestNewCritical) {
-          const toastId = `critical-popup-${latestNewCritical.id}`
-          toast.custom(
-            () => (
-              <button
-                onClick={() => {
-                  setOpen(true)
-                  setFilter('critical')
-                  toast.dismiss(toastId)
-                }}
-                className="w-[min(92vw,420px)] rounded-xl border border-red-300 dark:border-red-700
-                  bg-[color:var(--panel)] shadow-[var(--shadow)] px-4 py-3 text-left
-                  hover:border-[color:var(--accent)] transition"
-              >
-                <p className="text-sm font-semibold text-red-600 dark:text-red-400">Critical Notification</p>
-                <p className="text-sm font-medium mt-1">{latestNewCritical.title}</p>
-                <p className="text-xs text-[color:var(--text-muted)] mt-1 line-clamp-2">
-                  {latestNewCritical.detail}
-                </p>
-              </button>
-            ),
-            { id: toastId, duration: 2000 }
-          )
-        }
       } else if (hasNewNonCritical) {
         playStandardNotificationSound()
       }
-      previousCriticalUnreadIdsRef.current = criticalUnread
-      previousNonCriticalUnreadIdsRef.current = nonCriticalUnread
+
+      if (location.pathname === '/dashboard' && newItems.length > 0) {
+        newItems.forEach(showIncomingPopup)
+      }
+
+      previousUnreadIdsRef.current = unreadIds
     } catch (err) {
       console.error('Failed to load notifications', err)
       const cached = readJson(CACHE_KEY, [])
       setItems(cached)
     }
   }
+
+  useEffect(() => {
+    criticalAudioRef.current = new Audio(CRITICAL_SOUND_URL)
+    standardAudioRef.current = new Audio(STANDARD_SOUND_URL)
+    criticalAudioRef.current.preload = 'auto'
+    standardAudioRef.current.preload = 'auto'
+    criticalAudioRef.current.load()
+    standardAudioRef.current.load()
+
+    const unlockAudio = () => {
+      const attempt = audio => {
+        if (!audio) return
+        const wasMuted = audio.muted
+        audio.muted = true
+        audio.play()
+          .then(() => {
+            audio.pause()
+            audio.currentTime = 0
+            audio.muted = wasMuted
+          })
+          .catch(() => {
+            audio.muted = wasMuted
+          })
+      }
+      attempt(criticalAudioRef.current)
+      attempt(standardAudioRef.current)
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+
+    window.addEventListener('touchstart', unlockAudio, { once: true })
+    window.addEventListener('pointerdown', unlockAudio, { once: true })
+    window.addEventListener('keydown', unlockAudio, { once: true })
+
+    return () => {
+      window.removeEventListener('touchstart', unlockAudio)
+      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+  }, [])
 
   useEffect(() => {
     const onClickOutside = event => {
@@ -431,15 +510,18 @@ export default function NotificationBell() {
     }
   }, [location.pathname])
 
+  useEffect(() => {
+    if (!open) return
+    const unreadVisibleIds = filteredItems.filter(item => item.unread).map(item => item.id)
+    if (unreadVisibleIds.length > 0) {
+      markIdsRead(unreadVisibleIds, true)
+    }
+  }, [open, filter, filteredItems])
+
   async function markAllRead() {
     const ids = items.map(i => i.id)
-    setItems(prev => prev.map(item => ({ ...item, unread: false })))
-    const state = getLocalState()
-    const reads = new Set([...(state.reads || []), ...ids])
-    saveLocalState({ ...state, reads: [...reads] })
-    queueSyncAction({ type: 'read_all', ids })
+    markIdsRead(ids, true)
     toast.success('All notifications marked read')
-    await flushSyncQueue()
   }
 
   return (
@@ -455,7 +537,7 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {(unreadBySeverity.critical > 0 || unreadBySeverity.warning > 0) && (
+      {(unreadBySeverity.critical > 0 || unreadBySeverity.warning > 0 || unreadBySeverity.other > 0) && (
         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1">
           {unreadBySeverity.critical > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] leading-none font-semibold">
@@ -465,6 +547,11 @@ export default function NotificationBell() {
           {unreadBySeverity.warning > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] leading-none font-semibold">
               W{unreadBySeverity.warning}
+            </span>
+          )}
+          {unreadBySeverity.other > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] leading-none font-semibold">
+              O{unreadBySeverity.other}
             </span>
           )}
         </div>
@@ -492,6 +579,12 @@ export default function NotificationBell() {
               >
                 Mark all read
               </button>
+              <button
+                className="ml-2 text-xs text-red-500 hover:text-red-600 transition"
+                onClick={resetNotifications}
+              >
+                Reset all
+              </button>
             </div>
 
             <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
@@ -499,6 +592,7 @@ export default function NotificationBell() {
                 { id: 'all', label: 'All' },
                 { id: 'critical', label: 'Critical' },
                 { id: 'warning', label: 'Warning' },
+                { id: 'other', label: 'Other' },
                 { id: 'unread', label: 'Unread' },
               ].map(tab => (
                 <button
@@ -564,6 +658,16 @@ export default function NotificationBell() {
                       Acknowledge
                     </button>
                   )}
+
+                  <button
+                    onClick={() => deleteNotification(item.id)}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg
+                      bg-[color:var(--panel)] border border-[color:var(--border)] hover:border-red-500
+                      text-[color:var(--text)] hover:text-red-600 transition"
+                  >
+                    <IconTrash size={13} />
+                    Delete
+                  </button>
 
                   {item.action?.path && (
                     <button
