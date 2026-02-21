@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconAlertTriangle,
   IconBell,
@@ -133,6 +133,7 @@ function playStandardFallbackTone() {
 
 export default function NotificationBell() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState(() => readJson(CACHE_KEY, []))
   const [filter, setFilter] = useState('all')
@@ -358,11 +359,38 @@ export default function NotificationBell() {
       )
       const previous = previousCriticalUnreadIdsRef.current
       const hasNewCritical = [...criticalUnread].some(id => !previous.has(id))
+      const latestNewCritical = groupedItems.find(
+        item => item.severity === 'critical' && item.unread && !previous.has(item.id)
+      )
       const previousNonCritical = previousNonCriticalUnreadIdsRef.current
       const hasNewNonCritical = [...nonCriticalUnread].some(id => !previousNonCritical.has(id))
-      if (hasNewCritical && document.visibilityState === 'visible') {
+      if (hasNewCritical) {
         playCriticalNotificationSound()
-      } else if (hasNewNonCritical && document.visibilityState === 'visible') {
+        if (location.pathname === '/dashboard' && latestNewCritical) {
+          const toastId = `critical-popup-${latestNewCritical.id}`
+          toast.custom(
+            () => (
+              <button
+                onClick={() => {
+                  setOpen(true)
+                  setFilter('critical')
+                  toast.dismiss(toastId)
+                }}
+                className="w-[min(92vw,420px)] rounded-xl border border-red-300 dark:border-red-700
+                  bg-[color:var(--panel)] shadow-[var(--shadow)] px-4 py-3 text-left
+                  hover:border-[color:var(--accent)] transition"
+              >
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400">Critical Notification</p>
+                <p className="text-sm font-medium mt-1">{latestNewCritical.title}</p>
+                <p className="text-xs text-[color:var(--text-muted)] mt-1 line-clamp-2">
+                  {latestNewCritical.detail}
+                </p>
+              </button>
+            ),
+            { id: toastId, duration: 2000 }
+          )
+        }
+      } else if (hasNewNonCritical) {
         playStandardNotificationSound()
       }
       previousCriticalUnreadIdsRef.current = criticalUnread
@@ -401,7 +429,7 @@ export default function NotificationBell() {
       window.removeEventListener('online', onOnline)
       clearInterval(intervalId)
     }
-  }, [])
+  }, [location.pathname])
 
   async function markAllRead() {
     const ids = items.map(i => i.id)

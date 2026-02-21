@@ -94,6 +94,26 @@ export default function Reports() {
     }
   }, [customStart, customEnd])
 
+  function locationText(value) {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'object') {
+      const lat = value.latitude
+      const lon = value.longitude
+      const acc = value.accuracy
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        const coord = `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+        return typeof acc === 'number' ? `${coord} (±${Math.round(acc)}m)` : coord
+      }
+      try {
+        return JSON.stringify(value)
+      } catch {
+        return ''
+      }
+    }
+    return String(value)
+  }
+
   function formatDate(isoString) {
     try {
       const date = new Date(isoString)
@@ -128,7 +148,7 @@ export default function Reports() {
       formatTime(scanItem.scannedAt),
       scanItem.guardName || 'Unknown',
       scanItem.checkpointName || 'Unknown',
-      scanItem.location || ''
+      locationText(scanItem.location)
     ])
 
     const csvContent = [
@@ -153,7 +173,7 @@ export default function Reports() {
     return (
       (scanItem.guardName || '').toLowerCase().includes(term) ||
       (scanItem.checkpointName || '').toLowerCase().includes(term) ||
-      (scanItem.location || '').toLowerCase().includes(term)
+      locationText(scanItem.location).toLowerCase().includes(term)
     )
   })
 
@@ -338,7 +358,7 @@ export default function Reports() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm text-[color:var(--text-muted)] truncate max-w-[200px]">
-                        {scanItem.location || 'No location data'}
+                        {locationText(scanItem.location) || 'No location data'}
                       </div>
                     </td>
                   </tr>
