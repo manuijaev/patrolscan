@@ -18,10 +18,16 @@ function generateToken(user) {
 router.post('/admin/login', async (req, res) => {
   const { email, password } = req.body
 
+  console.log('Admin login attempt:', email)
+  
   const admin = await getAdminByEmail(email)
+  console.log('Admin found:', admin ? admin.email : 'not found')
+  
   if (!admin) return res.status(401).json({ message: 'Invalid credentials' })
 
   const match = await bcrypt.compare(password, admin.password)
+  console.log('Password match:', match)
+  
   if (!match) return res.status(401).json({ message: 'Invalid credentials' })
 
   const token = generateToken(admin)

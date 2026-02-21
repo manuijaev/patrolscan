@@ -1,6 +1,8 @@
 import app from './app.js'
 import dotenv from 'dotenv'
+import bcrypt from 'bcrypt'
 import { testConnection, syncDatabase } from './db/config.js'
+import { getAllAdmins, createAdmin } from './db/models/index.js'
 
 dotenv.config()
 
@@ -18,6 +20,19 @@ async function startServer() {
     
     // Sync database models (create tables if they don't exist)
     await syncDatabase()
+    
+    // Check if admin exists, create default if not
+    const existingAdmins = await getAllAdmins()
+    if (existingAdmins.length === 0) {
+      console.log('No admin found, creating default admin...')
+      const hashedPassword = bcrypt.hashSync('admin123', 10)
+      await createAdmin({
+        email: 'kenyaniemmanuel44@gmail.com',
+        password: hashedPassword,
+        role: 'admin'
+      })
+      console.log('Default admin created: kenyaniemmanuel44@gmail.com / admin123')
+    }
     
     // Start the server
     app.listen(PORT, () => {
