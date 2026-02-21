@@ -3,10 +3,12 @@ import {
   getAllScans, 
   createScan as dbCreateScan, 
   getScansByGuardId, 
-  getScansByCheckpointId, 
+  getScansByCheckpointId,
   getScansByDateRange as getScansByDateRangeDb,
   deleteScan,
-  getCheckpointById
+  getCheckpointById,
+  getAllCheckpoints,
+  getGuardsWithCheckpoints
 } from '../db/models/index.js'
 import { getGuardWithCheckpoints } from '../db/models/index.js'
 
@@ -26,6 +28,22 @@ function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
       Math.sin(dLon / 2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return earthRadius * c
+}
+
+function enrichScansWithNames(scans, guards, checkpoints) {
+  const guardNameById = new Map(guards.map(g => [String(g.id), g.name]))
+  const checkpointNameById = new Map(checkpoints.map(cp => [String(cp.id), cp.name]))
+
+  return scans.map(scan => {
+    const item = scan?.toJSON ? scan.toJSON() : scan
+    const guardName = guardNameById.get(String(item.guardId)) || 'Unknown Guard'
+    const checkpointName = checkpointNameById.get(String(item.checkpointId)) || 'Unknown Checkpoint'
+    return {
+      ...item,
+      guardName,
+      checkpointName,
+    }
+  })
 }
 
 async function validateAndPersistScan({ guardId, payload }) {
@@ -179,7 +197,11 @@ async function validateAndPersistScan({ guardId, payload }) {
 export async function getAll(req, res) {
   try {
     const scans = await getAllScans()
-    res.json(scans)
+    const [guards, checkpoints] = await Promise.all([
+      getGuardsWithCheckpoints(),
+      getAllCheckpoints(),
+    ])
+    res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -188,7 +210,7 @@ export async function getAll(req, res) {
 // Get scans by guard
 export async function getByGuard(req, res) {
   try {
-    const { guardId } = req.user
+    const guardId = req.user?.id
     const scans = await getScansByGuardId(guardId)
     res.json(scans)
   } catch (error) {
@@ -201,7 +223,11 @@ export async function getByDateRange(req, res) {
   try {
     const { startDate, endDate } = req.query
     const scans = await getScansByDateRangeDb(startDate, endDate)
-    res.json(scans)
+    const [guards, checkpoints] = await Promise.all([
+      getGuardsWithCheckpoints(),
+      getAllCheckpoints(),
+    ])
+    res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

@@ -191,22 +191,21 @@ export async function getStats(req, res) {
 export async function getTimeline(req, res) {
   try {
     const scans = await getAllScans()
-    const allGuards = await getGuardsWithCheckpoints()
-    const guards = allGuards.filter(g => g.isActive !== false)
+    const guards = await getGuardsWithCheckpoints()
     const checkpoints = await getAllCheckpoints()
+    const guardNameById = new Map(guards.map(g => [String(g.id), g.name]))
+    const checkpointNameById = new Map(checkpoints.map(cp => [String(cp.id), cp.name]))
     
     const recentScans = scans
       .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))
       .slice(0, 20)
       .map(scan => {
-        const guard = guards.find(g => Number(g.id) === Number(scan.guardId))
-        const checkpoint = checkpoints.find(cp => cp.id === scan.checkpointId)
         return {
           id: scan.id,
           guardId: scan.guardId,
-          guardName: guard ? guard.name : 'Unknown Guard',
+          guardName: guardNameById.get(String(scan.guardId)) || 'Unknown Guard',
           checkpointId: scan.checkpointId,
-          checkpointName: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
+          checkpointName: checkpointNameById.get(String(scan.checkpointId)) || 'Unknown Checkpoint',
           scannedAt: scan.scannedAt,
           location: scan.location || null,
           result: scan.result || 'passed',
