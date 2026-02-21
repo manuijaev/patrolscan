@@ -29,13 +29,16 @@ export async function getGuardByName(name) {
 // Create a new guard
 export async function createGuard({ name, pin }) {
   const existingGuards = await Guard.findAll()
-  const maxId = existingGuards.reduce((max, g) => Math.max(max, g.id), 0)
+  const maxId = existingGuards.length > 0 
+    ? Math.max(...existingGuards.map(g => g.id)) 
+    : 0
   
   const guard = await Guard.create({
     id: maxId + 1,
     name: name.trim(),
     pin,
     role: 'guard',
+    isActive: true,
     assignedCheckpoints: [],
     checkpointResetDates: {}
   })
@@ -54,12 +57,13 @@ export async function updateGuard(id, { name, pin }) {
   return guard
 }
 
-// Delete guard
+// Delete guard (soft delete - set isActive to false)
 export async function deleteGuard(id) {
   const guard = await Guard.findByPk(id)
   if (!guard) return false
   
-  await guard.destroy()
+  guard.isActive = false
+  await guard.save()
   return true
 }
 
@@ -181,10 +185,24 @@ export async function getAllScans() {
 
 // Get scans by guard ID
 export async function getScansByGuardId(guardId) {
-  return await Scan.findAll({
+  const scans = await Scan.findAll({
     where: { guardId },
     order: [['scannedAt', 'DESC']]
   })
+  
+  // Get all checkpoints to map IDs to names
+  const checkpoints = await Checkpoint.findAll()
+  const checkpointMap = {}
+  checkpoints.forEach(cp => {
+    checkpointMap[cp.id] = cp.name
+  })
+  
+  // Add checkpoint name to each scan
+  return scans.map(scan => ({
+    ...scan.toJSON(),
+    checkpointName: checkpointMap[scan.checkpointId] || scan.checkpointId,
+    timestamp: scan.scannedAt
+  }))
 }
 
 // Get scans by checkpoint ID

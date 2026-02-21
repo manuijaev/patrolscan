@@ -175,8 +175,13 @@ export default function ScanQR() {
   }
 
   async function loadRecentScans() {
+    // Get guard-specific localStorage key
+    const user = getUser()
+    const guardName = user?.name || 'default'
+    const localStorageKey = `recentScans_${guardName}`
+    
     // First try to load from localStorage for persistence when logged out
-    const storedScans = localStorage.getItem('recentScans')
+    const storedScans = localStorage.getItem(localStorageKey)
     let localScans = []
     if (storedScans) {
       try {
@@ -208,7 +213,12 @@ export default function ScanQR() {
 
   // Save scan to localStorage for persistence
   function saveScanToLocalStorage(scan) {
-    const storedScans = localStorage.getItem('recentScans')
+    // Get guard-specific localStorage key
+    const user = getUser()
+    const guardName = user?.name || 'default'
+    const localStorageKey = `recentScans_${guardName}`
+    
+    const storedScans = localStorage.getItem(localStorageKey)
     let scans = []
     if (storedScans) {
       try {
@@ -221,7 +231,7 @@ export default function ScanQR() {
     scans.unshift(scan)
     // Keep only last 50 scans
     scans = scans.slice(0, 50)
-    localStorage.setItem('recentScans', JSON.stringify(scans))
+    localStorage.setItem(localStorageKey, JSON.stringify(scans))
   }
 
   // Stop scanner

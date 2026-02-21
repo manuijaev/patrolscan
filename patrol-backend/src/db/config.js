@@ -51,12 +51,21 @@ export async function testConnection() {
 // Sync models (create tables if they don't exist)
 export async function syncDatabase() {
   try {
+    // Use force: true to drop and recreate tables if they exist but are out of sync
     await sequelize.sync({ alter: true })
     console.log('Database models synchronized successfully.')
     return true
   } catch (error) {
     console.error('Error synchronizing database models:', error)
-    return false
+    // Try with force if alter fails
+    try {
+      await sequelize.sync({ force: true })
+      console.log('Database models synchronized with force sync.')
+      return true
+    } catch (forceError) {
+      console.error('Force sync also failed:', forceError)
+      return false
+    }
   }
 }
 

@@ -16,11 +16,14 @@ export async function listGuards(req, res) {
   const scans = await getAllScans()
   const checkpoints = await getAllCheckpoints()
   
+  // Filter out inactive guards
+  const activeGuards = guards.filter(g => g.isActive !== false)
+  
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   
   // Get checkpoints completed today for each guard
-  const guardsWithStatus = guards.map(g => {
+  const guardsWithStatus = activeGuards.map(g => {
     const guardScans = scans.filter(s => 
       Number(s.guardId) === Number(g.id) && 
       new Date(s.scannedAt) >= startOfToday &&
@@ -52,7 +55,11 @@ export async function createGuard(req, res) {
   }
 
   const hashedPin = bcrypt.hashSync(pin, 10)
+  console.log('Creating guard:', name, 'PIN hash:', hashedPin)
+  
   const guard = await dbCreateGuard({ name: name.trim(), pin: hashedPin })
+  
+  console.log('Guard created:', guard.name, 'ID:', guard.id, 'isActive:', guard.isActive)
 
   return res.status(201).json({
     id: guard.id,

@@ -1,7 +1,7 @@
 import { Sequelize } from 'sequelize'
 import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
-import { getAdminByEmail, createAdmin, getAllAdmins } from './models/index.js'
+import { getAdminByEmail, createAdmin, getAllAdmins, getAllGuards } from './models/index.js'
 
 dotenv.config()
 
@@ -67,6 +67,20 @@ async function seed() {
       console.log('Default admin created: kenyaniemmanuel44@gmail.com / admin123')
     } else {
       console.log('Admin(s) already exist in database.')
+    }
+    
+    // Update existing guards to have isActive = true if not set
+    try {
+      const allGuards = await getAllGuards()
+      for (const guard of allGuards) {
+        if (guard.isActive === undefined || guard.isActive === null) {
+          guard.isActive = true
+          await guard.save()
+          console.log(`Updated guard ${guard.name} to isActive = true`)
+        }
+      }
+    } catch (err) {
+      console.log('Guard migration skipped:', err.message)
     }
     
     console.log('Database seeding completed successfully!')

@@ -97,7 +97,8 @@ export const remove = async (req, res) => {
     const checkpointId = req.params.id
     
     // First, remove this checkpoint from all guard assignments
-    const guards = await checkpointsDb.getAllGuards()
+    const allGuards = await checkpointsDb.getAllGuards()
+    const guards = allGuards.filter(g => g.isActive !== false)
     
     for (const guard of guards) {
       if (guard.assignedCheckpoints && guard.assignedCheckpoints.some(id => String(id) === String(checkpointId))) {

@@ -19,6 +19,10 @@ const Guard = sequelize.define('Guard', {
     type: DataTypes.STRING,
     defaultValue: 'guard'
   },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
   assignedCheckpoints: {
     type: DataTypes.JSONB,
     defaultValue: []

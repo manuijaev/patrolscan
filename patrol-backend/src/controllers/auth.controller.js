@@ -30,25 +30,29 @@ export async function guardLogin(req, res) {
     return res.status(400).json({ message: 'Username and PIN are required' })
   }
 
-  // Find guard by username (case-insensitive)
-  const guard = await getGuardByName(username.trim())
-  
-  // Also try to find by scanning all guards if exact match fails
-  if (!guard) {
-    const allGuards = await getAllGuards()
-    const found = allGuards.find(g => 
-      g.name.toLowerCase() === username.toLowerCase().trim()
-    )
-    if (found) {
-      return res.status(401).json({ message: 'Invalid username or PIN' })
-    }
-  }
+  // Search for guard case-insensitively
+  const allGuards = await getAllGuards()
+  const guard = allGuards.find(g => 
+    g.name.toLowerCase() === username.toLowerCase().trim()
+  )
+
+  // Debug: log guard found
+  console.log('Login attempt - username:', username)
+  console.log('Available guards:', allGuards.map(g => ({ name: g.name, isActive: g.isActive })))
+  console.log('Guard found:', guard ? guard.name : 'not found', 'isActive:', guard?.isActive)
 
   if (!guard) {
     return res.status(401).json({ message: 'Invalid username or PIN' })
   }
 
+  // Check if guard account is active (treat undefined as true for backwards compatibility)
+  if (guard.isActive === false) {
+    return res.status(401).json({ message: 'Your account has been removed. Please contact your administrator.' })
+  }
+
   const match = await bcrypt.compare(pin, guard.pin)
+  console.log('PIN match:', match)
+  
   if (!match) {
     return res.status(401).json({ message: 'Invalid username or PIN' })
   }

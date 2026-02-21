@@ -7,7 +7,10 @@ export async function getStats(req, res) {
   try {
     const scans = await getAllScans()
     const checkpoints = await getAllCheckpoints()
-    const guards = await getGuardsWithCheckpoints()
+    const allGuards = await getGuardsWithCheckpoints()
+    
+    // Filter only active guards
+    const guards = allGuards.filter(g => g.isActive !== false)
     
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -53,7 +56,8 @@ export async function getStats(req, res) {
 export async function getTimeline(req, res) {
   try {
     const scans = await getAllScans()
-    const guards = await getGuardsWithCheckpoints()
+    const allGuards = await getGuardsWithCheckpoints()
+    const guards = allGuards.filter(g => g.isActive !== false)
     const checkpoints = await getAllCheckpoints()
     
     const recentScans = scans
@@ -85,7 +89,8 @@ export async function getTimeline(req, res) {
 export async function getGuardPerformance(req, res) {
   try {
     const scans = await getAllScans()
-    const guards = await getGuardsWithCheckpoints()
+    const allGuards = await getGuardsWithCheckpoints()
+    const guards = allGuards.filter(g => g.isActive !== false)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -125,7 +130,8 @@ export async function getGuardPerformance(req, res) {
 // Get upcoming patrols (assigned checkpoints to guards)
 export async function getUpcomingPatrols(req, res) {
   try {
-    const guards = await getGuardsWithCheckpoints()
+    const allGuards = await getGuardsWithCheckpoints()
+    const guards = allGuards.filter(g => g.isActive !== false)
     const checkpoints = await getAllCheckpoints()
     const scans = await getAllScans()
     

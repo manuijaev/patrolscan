@@ -28,24 +28,8 @@ export default function Guards() {
         headers: { Authorization: `Bearer ${getToken()}` },
       })
       setGuards(res.data)
-      
-      // Store completed checkpoints for each guard
-      const completed = {}
-      res.data.forEach(guard => {
-        completed[guard.id] = guard.completedCheckpoints || []
-      })
-      setCompletedCheckpoints(completed)
     } catch (err) {
       console.error('Failed to load guards', err)
-    }
-  }
-
-  async function loadCheckpoints() {
-    try {
-      const res = await api.get('/checkpoints')
-      setCheckpoints(res.data)
-    } catch (err) {
-      console.error('Failed to load checkpoints', err)
     }
   }
 

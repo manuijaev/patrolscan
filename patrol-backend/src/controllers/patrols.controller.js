@@ -6,7 +6,8 @@ import { getAllScans } from '../db/models/index.js'
 // Get all patrol assignments with status
 export async function getPatrolAssignments(req, res) {
   try {
-    const guards = await getGuardsWithCheckpoints()
+    const allGuards = await getGuardsWithCheckpoints()
+    const guards = allGuards.filter(g => g.isActive !== false)
     const checkpoints = await getAllCheckpoints()
     const scans = await getAllScans()
     
