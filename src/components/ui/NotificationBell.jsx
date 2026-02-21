@@ -246,6 +246,9 @@ export default function NotificationBell() {
       if (action.type === 'read_all' && Array.isArray(action.ids)) {
         reads.push(...action.ids)
       }
+      if (action.type === 'delete_all' && Array.isArray(action.ids)) {
+        deletes.push(...action.ids)
+      }
       if (action.type === 'reset_all') shouldResetAll = true
     }
 
@@ -520,8 +523,31 @@ export default function NotificationBell() {
 
   async function markAllRead() {
     const ids = items.map(i => i.id)
-    markIdsRead(ids, true)
-    toast.success('All notifications marked read')
+    if (!ids.length) {
+      setOpen(false)
+      return
+    }
+    setItems([])
+    const state = getLocalState()
+    const reads = new Set(state.reads || [])
+    const acks = new Set(state.acks || [])
+    const deletedIds = new Set(state.deletedIds || [])
+    ids.forEach(id => {
+      reads.add(id)
+      acks.add(id)
+      deletedIds.add(id)
+    })
+    saveLocalState({
+      ...state,
+      reads: [...reads],
+      acks: [...acks],
+      deletedIds: [...deletedIds],
+    })
+    queueSyncAction({ type: 'read_all', ids })
+    queueSyncAction({ type: 'delete_all', ids })
+    setOpen(false)
+    flushSyncQueue()
+    toast.success('All notifications cleared')
   }
 
   return (
