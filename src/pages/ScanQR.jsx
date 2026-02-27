@@ -21,7 +21,8 @@ import {
   IconSun,
   IconArrowLeft,
   IconEye,
-  IconLogout
+  IconLogout,
+  IconTrash
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
@@ -30,6 +31,29 @@ import { getToken, getUser, logout } from '../auth/authStore'
 const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
 const FAIL_COOLDOWN_MS = 10000 // 10 seconds for failed scans
 const MAX_PROCESSING_TIME = 10000 // 10 seconds max processing time
+
+function getDeletionRangeStart(range) {
+  const now = new Date()
+  const start = new Date(now)
+
+  switch (range) {
+    case '7d':
+      start.setDate(now.getDate() - 7)
+      return start
+    case '1m':
+      start.setMonth(now.getMonth() - 1)
+      return start
+    case '6m':
+      start.setMonth(now.getMonth() - 6)
+      return start
+    case '1y':
+      start.setFullYear(now.getFullYear() - 1)
+      return start
+    default:
+      start.setDate(now.getDate() - 7)
+      return start
+  }
+}
 
 export default function ScanQR() {
   const navigate = useNavigate()
@@ -45,6 +69,10 @@ export default function ScanQR() {
   const [cooldownTime, setCooldownTime] = useState(0)
   const [showTick, setShowTick] = useState(false)
   const [showCross, setShowCross] = useState(false)
+  const [scanSelectionMode, setScanSelectionMode] = useState(false)
+  const [selectedScanKeys, setSelectedScanKeys] = useState([])
+  const [deleteRange, setDeleteRange] = useState('7d')
+  const [deletingScans, setDeletingScans] = useState(false)
 
   // Theme state
   const [darkMode, setDarkMode] = useState(() => {
@@ -57,6 +85,7 @@ export default function ScanQR() {
   const cooldownTimerRef = useRef(null)
   const processingTimeoutRef = useRef(null)
   const safetyTimeoutRef = useRef(null)
+  const longPressTimerRef = useRef(null)
   const lastScannedQrRef = useRef('') // Track last scanned QR to prevent duplicates
   const scanCompletedRef = useRef(false) // Prevent duplicate completeScan calls
   const wasOnlineRef = useRef(true) // Track previous online status to prevent duplicate toasts
@@ -100,6 +129,7 @@ export default function ScanQR() {
       if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
       if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current)
       if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current)
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
       stopScanner()
     }
   }, [])
@@ -177,11 +207,61 @@ export default function ScanQR() {
     }
   }
 
+  function getStorageKey() {
+    const currentUser = getUser()
+    const guardName = currentUser?.name || 'default'
+    return `recentScans_${guardName}`
+  }
+
+  function getHiddenScansStorageKey() {
+    const currentUser = getUser()
+    const guardName = currentUser?.name || 'default'
+    return `hiddenRecentScans_${guardName}`
+  }
+
+  function getScanTimeMs(scan) {
+    const value = scan?.timestamp || scan?.scannedAt
+    const time = new Date(value).getTime()
+    return Number.isNaN(time) ? 0 : time
+  }
+
+  function buildScanKey(scan, source) {
+    if (source === 'api' && scan?.id) return `api:${scan.id}`
+    const fallback = scan?.localId || scan?.timestamp || scan?.scannedAt || Math.random().toString(36).slice(2)
+    return `local:${fallback}`
+  }
+
+  function normalizeRecentScan(scan, source) {
+    const timestamp = scan?.timestamp || scan?.scannedAt || new Date().toISOString()
+    const success = typeof scan?.success === 'boolean' ? scan.success : scan?.result !== 'failed'
+    return {
+      ...scan,
+      source,
+      scanKey: buildScanKey(scan, source),
+      checkpointName: scan?.checkpointName || scan?.name || 'Unknown Checkpoint',
+      name: scan?.name || scan?.checkpointName || 'Unknown Checkpoint',
+      success,
+      timestamp,
+    }
+  }
+
+  function readHiddenScans() {
+    try {
+      const raw = localStorage.getItem(getHiddenScansStorageKey())
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  function writeHiddenScans(values) {
+    localStorage.setItem(getHiddenScansStorageKey(), JSON.stringify(values))
+  }
+
   async function loadRecentScans() {
-    // Get guard-specific localStorage key
-    const user = getUser()
-    const guardName = user?.name || 'default'
-    const localStorageKey = `recentScans_${guardName}`
+    const localStorageKey = getStorageKey()
     
     // First try to load from localStorage for persistence when logged out
     const storedScans = localStorage.getItem(localStorageKey)
@@ -194,23 +274,40 @@ export default function ScanQR() {
       }
     }
     
+    const hiddenScanKeys = new Set(readHiddenScans())
+
     try {
       const token = getToken()
       const res = await api.get('/scans/my-scans', {
         headers: { Authorization: `Bearer ${token}` },
       })
-      // Merge API scans with local scans, remove duplicates
-      const apiScans = res.data || []
-      const allScans = [...apiScans, ...localScans]
-      // Remove duplicates based on timestamp
-      const uniqueScans = allScans.filter((scan, index, self) => 
-        index === self.findIndex((s) => s.timestamp === scan.timestamp)
-      )
-      setLastScans(uniqueScans.slice(0, 5))
+      const apiScans = (res.data || []).map(scan => normalizeRecentScan(scan, 'api'))
+      const normalizedLocalScans = localScans.map(scan => normalizeRecentScan(scan, 'local'))
+
+      // Prefer API scan for the same timestamp, then add local-only scans.
+      const mergedByTimestamp = new Map()
+      apiScans.forEach(scan => {
+        mergedByTimestamp.set(scan.timestamp, scan)
+      })
+      normalizedLocalScans.forEach(scan => {
+        if (!mergedByTimestamp.has(scan.timestamp)) {
+          mergedByTimestamp.set(scan.timestamp, scan)
+        }
+      })
+
+      const merged = Array.from(mergedByTimestamp.values())
+        .filter(scan => !hiddenScanKeys.has(scan.scanKey))
+        .sort((a, b) => getScanTimeMs(b) - getScanTimeMs(a))
+
+      setLastScans(merged.slice(0, 50))
     } catch (err) {
       console.error('Failed to load scans', err)
       // Fall back to localStorage only
-      setLastScans(localScans.slice(0, 5))
+      const normalizedLocalScans = localScans
+        .map(scan => normalizeRecentScan(scan, 'local'))
+        .filter(scan => !hiddenScanKeys.has(scan.scanKey))
+        .sort((a, b) => getScanTimeMs(b) - getScanTimeMs(a))
+      setLastScans(normalizedLocalScans.slice(0, 50))
     }
   }
 
@@ -222,10 +319,7 @@ export default function ScanQR() {
 
   // Save scan to localStorage for persistence
   function saveScanToLocalStorage(scan) {
-    // Get guard-specific localStorage key
-    const user = getUser()
-    const guardName = user?.name || 'default'
-    const localStorageKey = `recentScans_${guardName}`
+    const localStorageKey = getStorageKey()
     
     const storedScans = localStorage.getItem(localStorageKey)
     let scans = []
@@ -236,8 +330,10 @@ export default function ScanQR() {
         scans = []
       }
     }
-    // Add new scan at the beginning
-    scans.unshift(scan)
+    scans.unshift({
+      ...scan,
+      localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    })
     // Keep only last 50 scans
     scans = scans.slice(0, 50)
     localStorage.setItem(localStorageKey, JSON.stringify(scans))
@@ -685,6 +781,97 @@ export default function ScanQR() {
     }
   }
 
+  const deletionStart = getDeletionRangeStart(deleteRange)
+  const deletableScans = lastScans.filter(scan => getScanTimeMs(scan) >= deletionStart.getTime())
+  const displayedHistoryScans = scanSelectionMode ? deletableScans : lastScans
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  function enterScanSelection(scanKey) {
+    if (!scanKey) return
+    setScanSelectionMode(true)
+    setSelectedScanKeys(prev => (prev.includes(scanKey) ? prev : [...prev, scanKey]))
+  }
+
+  function startScanLongPress(scanKey) {
+    if (scanSelectionMode || !scanKey) return
+    clearLongPressTimer()
+    longPressTimerRef.current = setTimeout(() => {
+      enterScanSelection(scanKey)
+    }, 1000)
+  }
+
+  function endScanLongPress() {
+    clearLongPressTimer()
+  }
+
+  function toggleScanSelection(scanKey) {
+    if (!scanKey) return
+    setSelectedScanKeys(prev =>
+      prev.includes(scanKey) ? prev.filter(key => key !== scanKey) : [...prev, scanKey]
+    )
+  }
+
+  function exitScanSelection() {
+    setScanSelectionMode(false)
+    setSelectedScanKeys([])
+  }
+
+  useEffect(() => {
+    if (!scanSelectionMode) return
+    const visibleKeys = new Set(deletableScans.map(scan => scan.scanKey))
+    setSelectedScanKeys(prev => prev.filter(key => visibleKeys.has(key)))
+  }, [scanSelectionMode, deleteRange, lastScans])
+
+  async function deleteSelectedFromRecentScans() {
+    if (!selectedScanKeys.length || deletingScans) return
+
+    const confirmed = window.confirm(
+      `Delete ${selectedScanKeys.length} selected recent scan(s) from this scanner history?`
+    )
+    if (!confirmed) return
+
+    setDeletingScans(true)
+    try {
+      const selectedSet = new Set(selectedScanKeys)
+      const nextLastScans = lastScans.filter(scan => !selectedSet.has(scan.scanKey))
+      setLastScans(nextLastScans)
+
+      // Persist hidden keys so deleted API-backed entries stay hidden on this scanner,
+      // without removing records from the backend/admin dashboard.
+      const hiddenKeys = readHiddenScans()
+      const hiddenSet = new Set(hiddenKeys)
+      selectedScanKeys.forEach(key => hiddenSet.add(key))
+      writeHiddenScans(Array.from(hiddenSet))
+
+      // Remove local-only scan entries from localStorage if selected.
+      const localStorageKey = getStorageKey()
+      const storedScans = localStorage.getItem(localStorageKey)
+      if (storedScans) {
+        try {
+          const parsed = JSON.parse(storedScans)
+          const localFiltered = (Array.isArray(parsed) ? parsed : []).filter(scan => {
+            const scanKey = buildScanKey(scan, 'local')
+            return !selectedSet.has(scanKey)
+          })
+          localStorage.setItem(localStorageKey, JSON.stringify(localFiltered))
+        } catch {
+          // ignore parse issues and keep current storage untouched
+        }
+      }
+
+      exitScanSelection()
+      toast.success('Recent scans removed from scanner history')
+    } finally {
+      setDeletingScans(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
@@ -988,25 +1175,75 @@ export default function ScanQR() {
             {showPatrolHistory ? (
               // Patrol History View
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <button 
-                    onClick={() => setShowPatrolHistory(false)}
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-                  >
-                    <IconArrowLeft size={24} className="text-gray-600 dark:text-gray-400" />
-                  </button>
-                  <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
-                    Patrol History
-                  </h2>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setShowPatrolHistory(false)}
+                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      <IconArrowLeft size={24} className="text-gray-600 dark:text-gray-400" />
+                    </button>
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
+                      Patrol History
+                    </h2>
+                  </div>
+
+                  {scanSelectionMode ? (
+                    <div className="flex flex-wrap justify-end items-center gap-2">
+                      <select
+                        value={deleteRange}
+                        onChange={(e) => setDeleteRange(e.target.value)}
+                        className="rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs"
+                      >
+                        <option value="7d">Last 7 Days</option>
+                        <option value="1m">Last Month</option>
+                        <option value="6m">Last 6 Months</option>
+                        <option value="1y">Last Year</option>
+                      </select>
+                      <button
+                        onClick={exitScanSelection}
+                        className="px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={deleteSelectedFromRecentScans}
+                        disabled={!selectedScanKeys.length || deletingScans}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg bg-red-600 text-white disabled:opacity-50"
+                      >
+                        <IconTrash size={14} />
+                        {deletingScans ? 'Deleting...' : `Delete (${selectedScanKeys.length})`}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setScanSelectionMode(true)}
+                      disabled={!lastScans.length}
+                      className="px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                    >
+                      Select
+                    </button>
+                  )}
                 </div>
 
-                {lastScans.length > 0 ? (
+                {displayedHistoryScans.length > 0 ? (
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                    {lastScans.map((scan) => (
+                    {displayedHistoryScans.map((scan) => (
                       <div
-                        key={scan.id || scan.timestamp}
-                        className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        key={scan.scanKey || scan.id || scan.timestamp}
+                        className={`p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                          scanSelectionMode ? 'cursor-pointer' : ''
+                        }`}
+                        onTouchStart={() => startScanLongPress(scan.scanKey)}
+                        onTouchEnd={endScanLongPress}
+                        onTouchCancel={endScanLongPress}
+                        onMouseDown={() => startScanLongPress(scan.scanKey)}
+                        onMouseUp={endScanLongPress}
+                        onMouseLeave={endScanLongPress}
+                        onClick={() => {
+                          if (scanSelectionMode) toggleScanSelection(scan.scanKey)
+                        }}
                       >
                         <div className="flex items-start gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
@@ -1036,6 +1273,15 @@ export default function ScanQR() {
                               }`}>
                                 {scan.success ? 'Passed' : 'Failed'}
                               </span>
+                              {scanSelectionMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedScanKeys.includes(scan.scanKey)}
+                                  onChange={() => toggleScanSelection(scan.scanKey)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-4 w-4"
+                                />
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1048,10 +1294,12 @@ export default function ScanQR() {
                       <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
                     </div>
                     <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      No patrol history
+                      {scanSelectionMode ? 'No scans in selected delete range' : 'No patrol history'}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Your scan history will appear here
+                      {scanSelectionMode
+                        ? 'Try another delete range.'
+                        : 'Your scan history will appear here'}
                     </p>
                   </div>
                 )}

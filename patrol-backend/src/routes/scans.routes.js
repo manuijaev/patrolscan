@@ -1,5 +1,12 @@
 import express from 'express'
-import { getAll, getByGuard, getByDateRange, recordScan, remove } from '../controllers/scans.controller.js'
+import {
+  getAll,
+  getByGuard,
+  getByDateRange,
+  recordScan,
+  remove,
+  removeBulk,
+} from '../controllers/scans.controller.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
 
 const router = express.Router()
@@ -13,6 +20,7 @@ router.get('/my-scans', requireAuth(), getByGuard)
 // Admin routes
 router.get('/', requireAuth('admin'), getAll)
 router.get('/date-range', requireAuth('admin'), getByDateRange)
+router.delete('/bulk-delete', requireAuth('admin'), removeBulk)
 router.delete('/:id', requireAuth('admin'), remove)
 
 export default router

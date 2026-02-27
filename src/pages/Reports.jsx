@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   IconDownload,
   IconCalendar,
@@ -6,10 +6,35 @@ import {
   IconMapPin,
   IconClock,
   IconSearch,
-  IconLoader2
+  IconLoader2,
+  IconTrash,
+  IconCheck,
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
+
+function getDeletionRangeStart(range) {
+  const now = new Date()
+  const start = new Date(now)
+
+  switch (range) {
+    case '7d':
+      start.setDate(now.getDate() - 7)
+      return start
+    case '1m':
+      start.setMonth(now.getMonth() - 1)
+      return start
+    case '6m':
+      start.setMonth(now.getMonth() - 6)
+      return start
+    case '1y':
+      start.setFullYear(now.getFullYear() - 1)
+      return start
+    default:
+      start.setDate(now.getDate() - 7)
+      return start
+  }
+}
 
 export default function Reports() {
   const [scans, setScans] = useState([])
@@ -19,6 +44,11 @@ export default function Reports() {
   const [customEnd, setCustomEnd] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedScanIds, setSelectedScanIds] = useState([])
+  const [deleteRange, setDeleteRange] = useState('7d')
+  const [deleting, setDeleting] = useState(false)
+  const longPressTimerRef = useRef(null)
 
   function toMetersText(value) {
     if (typeof value !== 'number' || Number.isNaN(value)) return 'N/A'
@@ -107,7 +137,8 @@ export default function Reports() {
         return
       }
 
-      let startDate, endDate
+      let startDate
+      let endDate
       const now = new Date()
 
       switch (dateRange) {
@@ -174,6 +205,12 @@ export default function Reports() {
     }
   }, [customStart, customEnd])
 
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    }
+  }, [])
+
   function formatDate(isoString) {
     try {
       const date = new Date(isoString)
@@ -199,6 +236,43 @@ export default function Reports() {
     }
   }
 
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  function enterSelectionMode(scanId) {
+    if (!scanId) return
+    setSelectionMode(true)
+    setSelectedScanIds(prev => (prev.includes(scanId) ? prev : [...prev, scanId]))
+  }
+
+  function onCardPressStart(scanId) {
+    if (selectionMode || !scanId) return
+    clearLongPressTimer()
+    longPressTimerRef.current = setTimeout(() => {
+      enterSelectionMode(scanId)
+    }, 1000)
+  }
+
+  function onCardPressEnd() {
+    clearLongPressTimer()
+  }
+
+  function toggleScanSelection(scanId) {
+    if (!scanId) return
+    setSelectedScanIds(prev =>
+      prev.includes(scanId) ? prev.filter(id => id !== scanId) : [...prev, scanId]
+    )
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false)
+    setSelectedScanIds([])
+  }
+
   const filteredScans = scans.filter(scanItem => {
     if (!searchTerm) return true
     const term = searchTerm.toLowerCase()
@@ -209,6 +283,44 @@ export default function Reports() {
       (scanItem.resultDetails?.reason || '').toLowerCase().includes(term)
     )
   })
+
+  const deletionStart = getDeletionRangeStart(deleteRange)
+  const deletableScans = filteredScans.filter(scanItem => {
+    if (!scanItem?.id) return false
+    const scannedAt = new Date(scanItem.scannedAt)
+    return !Number.isNaN(scannedAt.getTime()) && scannedAt >= deletionStart
+  })
+
+  useEffect(() => {
+    if (!selectionMode) return
+    const deletableIds = new Set(deletableScans.map(item => item.id))
+    setSelectedScanIds(prev => prev.filter(id => deletableIds.has(id)))
+  }, [selectionMode, deleteRange, searchTerm, scans])
+
+  const displayedScans = selectionMode ? deletableScans : filteredScans
+
+  async function deleteSelectedScans() {
+    if (!selectedScanIds.length || deleting) return
+
+    const confirmed = window.confirm(`Delete ${selectedScanIds.length} selected report(s) permanently?`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    setError('')
+    try {
+      await api.delete('/scans/bulk-delete', {
+        data: { ids: selectedScanIds },
+      })
+
+      setScans(prev => prev.filter(scan => !selectedScanIds.includes(scan.id)))
+      exitSelectionMode()
+    } catch (err) {
+      console.error('Failed to delete selected reports', err)
+      setError(err.response?.data?.message || 'Failed to delete selected reports.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   function exportCSV() {
     if (filteredScans.length === 0) return
@@ -248,23 +360,63 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Reports</h2>
           <p className="text-sm text-[color:var(--text-muted)]">
             View patrol scan history and export reports.
           </p>
         </div>
-        <button
-          onClick={exportCSV}
-          disabled={!filteredScans.length}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
-            hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50
-            disabled:cursor-not-allowed"
-        >
-          <IconDownload size={18} />
-          Export CSV
-        </button>
+
+        {selectionMode ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={deleteRange}
+              onChange={(e) => setDeleteRange(e.target.value)}
+              className="rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2 text-sm"
+            >
+              <option value="7d">Last 7 Days</option>
+              <option value="1m">Last Month</option>
+              <option value="6m">Last 6 Months</option>
+              <option value="1y">Last Year</option>
+            </select>
+            <button
+              onClick={exitSelectionMode}
+              className="px-4 py-2 rounded-xl border border-[color:var(--border)] text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={deleteSelectedScans}
+              disabled={!selectedScanIds.length || deleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
+            >
+              <IconTrash size={16} />
+              {deleting ? 'Deleting...' : `Delete (${selectedScanIds.length})`}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectionMode(true)}
+              disabled={!filteredScans.length}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[color:var(--border)] hover:bg-[color:var(--bg-muted)] transition text-sm disabled:opacity-50"
+            >
+              <IconCheck size={16} />
+              Select
+            </button>
+            <button
+              onClick={exportCSV}
+              disabled={!filteredScans.length}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
+                hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50
+                disabled:cursor-not-allowed"
+            >
+              <IconDownload size={18} />
+              Export CSV
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -363,51 +515,77 @@ export default function Reports() {
               <span>Loading scans...</span>
             </div>
           </div>
-        ) : filteredScans.length > 0 ? (
+        ) : displayedScans.length > 0 ? (
           <>
             <div className="sm:hidden divide-y divide-[color:var(--border)]">
-              {filteredScans.map(scanItem => (
-                <div
-                  key={scanItem.id || `${scanItem.scannedAt}-${scanItem.guardName}`}
-                  className="p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <IconCalendar size={15} className="text-[color:var(--text-muted)]" />
-                      <span>{formatDate(scanItem.scannedAt)}</span>
-                      <IconClock size={14} className="text-[color:var(--text-muted)]" />
-                      <span className="text-[color:var(--text-muted)]">{formatTime(scanItem.scannedAt)}</span>
+              {displayedScans.map(scanItem => {
+                const selected = selectedScanIds.includes(scanItem.id)
+                return (
+                  <div
+                    key={scanItem.id || `${scanItem.scannedAt}-${scanItem.guardName}`}
+                    className={`p-4 space-y-3 ${selectionMode ? 'bg-[color:var(--bg-muted)]/50' : ''}`}
+                    onTouchStart={() => onCardPressStart(scanItem.id)}
+                    onTouchEnd={onCardPressEnd}
+                    onTouchCancel={onCardPressEnd}
+                    onMouseDown={() => onCardPressStart(scanItem.id)}
+                    onMouseUp={onCardPressEnd}
+                    onMouseLeave={onCardPressEnd}
+                    onClick={() => {
+                      if (selectionMode) toggleScanSelection(scanItem.id)
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <IconCalendar size={15} className="text-[color:var(--text-muted)]" />
+                        <span>{formatDate(scanItem.scannedAt)}</span>
+                        <IconClock size={14} className="text-[color:var(--text-muted)]" />
+                        <span className="text-[color:var(--text-muted)]">{formatTime(scanItem.scannedAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectionMode && (
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleScanSelection(scanItem.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4"
+                          />
+                        )}
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full border ${
+                            scanItem.result === 'failed'
+                              ? 'border-red-300 text-red-600 bg-red-50 dark:bg-red-900/20 dark:border-red-700'
+                              : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700'
+                          }`}
+                        >
+                          {scanItem.result === 'failed' ? 'Failed' : 'Passed'}
+                        </span>
+                      </div>
                     </div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full border ${
-                        scanItem.result === 'failed'
-                          ? 'border-red-300 text-red-600 bg-red-50 dark:bg-red-900/20 dark:border-red-700'
-                          : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700'
-                      }`}
-                    >
-                      {scanItem.result === 'failed' ? 'Failed' : 'Passed'}
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 gap-2 text-sm">
-                    <p><span className="text-[color:var(--text-muted)]">Guard:</span> {scanItem.guardName || 'Unknown Guard'}</p>
-                    <p><span className="text-[color:var(--text-muted)]">Checkpoint:</span> {scanItem.checkpointName || 'Unknown Checkpoint'}</p>
-                    <p><span className="text-[color:var(--text-muted)]">Location:</span> {scanItem.locationText || 'No location data'}</p>
-                  </div>
+                    <div className="grid grid-cols-1 gap-2 text-sm">
+                      <p><span className="text-[color:var(--text-muted)]">Guard:</span> {scanItem.guardName || 'Unknown Guard'}</p>
+                      <p><span className="text-[color:var(--text-muted)]">Checkpoint:</span> {scanItem.checkpointName || 'Unknown Checkpoint'}</p>
+                      <p><span className="text-[color:var(--text-muted)]">Location:</span> {scanItem.locationText || 'No location data'}</p>
+                    </div>
 
-                  <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-muted)] p-3 text-xs space-y-1">
-                    <p><span className="text-[color:var(--text-muted)]">Reason:</span> {scanItem.resultDetails.reason}</p>
-                    <p><span className="text-[color:var(--text-muted)]">GPS accuracy:</span> {toMetersText(scanItem.resultDetails.gpsAccuracy)}</p>
-                    <p><span className="text-[color:var(--text-muted)]">Distance / allowed:</span> {scanItem.resultDetails.distanceVsAllowed}</p>
+                    <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-muted)] p-3 text-xs space-y-1">
+                      <p><span className="text-[color:var(--text-muted)]">Reason:</span> {scanItem.resultDetails.reason}</p>
+                      <p><span className="text-[color:var(--text-muted)]">GPS accuracy:</span> {toMetersText(scanItem.resultDetails.gpsAccuracy)}</p>
+                      <p><span className="text-[color:var(--text-muted)]">Distance / allowed:</span> {scanItem.resultDetails.distanceVsAllowed}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[980px]">
                 <thead className="bg-[color:var(--bg-muted)]">
                   <tr>
+                    {selectionMode && (
+                      <th className="text-left px-4 py-3 text-sm font-medium text-[color:var(--text-muted)]">Select</th>
+                    )}
                     <th className="text-left px-4 py-3 text-sm font-medium text-[color:var(--text-muted)]">Date & Time</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-[color:var(--text-muted)]">Guard</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-[color:var(--text-muted)]">Checkpoint</th>
@@ -419,69 +597,89 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[color:var(--border)]">
-                  {filteredScans.map(scanItem => (
-                    <tr
-                      key={scanItem.id || `${scanItem.scannedAt}-${scanItem.guardName}`}
-                      className="hover:bg-[color:var(--bg-muted)] transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <IconCalendar size={16} className="text-[color:var(--text-muted)] flex-shrink-0" />
-                          <span className="text-sm">{formatDate(scanItem.scannedAt)}</span>
-                          <IconClock size={14} className="text-[color:var(--text-muted)] flex-shrink-0" />
-                          <span className="text-sm text-[color:var(--text-muted)]">{formatTime(scanItem.scannedAt)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <IconUser size={16} className="text-[color:var(--text-muted)] flex-shrink-0" />
-                          <span className="text-sm truncate max-w-[150px]">{scanItem.guardName || 'Unknown Guard'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <IconMapPin size={16} className="text-[color:var(--accent)] flex-shrink-0" />
-                          <span className="text-sm truncate max-w-[180px]">{scanItem.checkpointName || 'Unknown Checkpoint'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-[color:var(--text-muted)] max-w-[220px]">{scanItem.locationText || 'No location data'}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full border ${
-                            scanItem.result === 'failed'
-                              ? 'border-red-300 text-red-600 bg-red-50 dark:bg-red-900/20 dark:border-red-700'
-                              : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700'
-                          }`}
-                        >
-                          {scanItem.result === 'failed' ? 'Failed' : 'Passed'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-[color:var(--text-muted)] max-w-[280px]">{scanItem.resultDetails.reason}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-[color:var(--text-muted)]">{toMetersText(scanItem.resultDetails.gpsAccuracy)}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-[color:var(--text-muted)]">{scanItem.resultDetails.distanceVsAllowed}</div>
-                      </td>
-                    </tr>
-                  ))}
+                  {displayedScans.map(scanItem => {
+                    const selected = selectedScanIds.includes(scanItem.id)
+                    return (
+                      <tr
+                        key={scanItem.id || `${scanItem.scannedAt}-${scanItem.guardName}`}
+                        className={`hover:bg-[color:var(--bg-muted)] transition-colors ${selectionMode ? 'cursor-pointer' : ''}`}
+                        onClick={() => {
+                          if (selectionMode) toggleScanSelection(scanItem.id)
+                        }}
+                      >
+                        {selectionMode && (
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleScanSelection(scanItem.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-4 w-4"
+                            />
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <IconCalendar size={16} className="text-[color:var(--text-muted)] flex-shrink-0" />
+                            <span className="text-sm">{formatDate(scanItem.scannedAt)}</span>
+                            <IconClock size={14} className="text-[color:var(--text-muted)] flex-shrink-0" />
+                            <span className="text-sm text-[color:var(--text-muted)]">{formatTime(scanItem.scannedAt)}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <IconUser size={16} className="text-[color:var(--text-muted)] flex-shrink-0" />
+                            <span className="text-sm truncate max-w-[150px]">{scanItem.guardName || 'Unknown Guard'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <IconMapPin size={16} className="text-[color:var(--accent)] flex-shrink-0" />
+                            <span className="text-sm truncate max-w-[180px]">{scanItem.checkpointName || 'Unknown Checkpoint'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-[color:var(--text-muted)] max-w-[220px]">{scanItem.locationText || 'No location data'}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full border ${
+                              scanItem.result === 'failed'
+                                ? 'border-red-300 text-red-600 bg-red-50 dark:bg-red-900/20 dark:border-red-700'
+                                : 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700'
+                            }`}
+                          >
+                            {scanItem.result === 'failed' ? 'Failed' : 'Passed'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-[color:var(--text-muted)] max-w-[280px]">{scanItem.resultDetails.reason}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-[color:var(--text-muted)]">{toMetersText(scanItem.resultDetails.gpsAccuracy)}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-[color:var(--text-muted)]">{scanItem.resultDetails.distanceVsAllowed}</div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           </>
         ) : (
           <div className="p-8 text-center text-[color:var(--text-muted)]">
-            {scans.length === 0 ? 'No scans found for the selected period.' : 'No results match your search.'}
+            {selectionMode
+              ? 'No reports found in the selected delete range.'
+              : (scans.length === 0 ? 'No scans found for the selected period.' : 'No results match your search.')}
           </div>
         )}
 
-        {!loading && filteredScans.length > 0 && (
+        {!loading && displayedScans.length > 0 && (
           <div className="px-4 py-3 border-t border-[color:var(--border)] bg-[color:var(--bg-muted)] text-sm text-[color:var(--text-muted)]">
-            Showing {filteredScans.length} of {scans.length} scans
+            Showing {displayedScans.length} of {selectionMode ? deletableScans.length : scans.length} scans
+            {!selectionMode && ' (long-press a report on mobile to select and delete)'}
           </div>
         )}
       </div>

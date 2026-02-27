@@ -6,6 +6,7 @@ import {
   getScansByCheckpointId,
   getScansByDateRange as getScansByDateRangeDb,
   deleteScan,
+  deleteScansByIds,
   getCheckpointById,
   getAllCheckpoints,
   getGuardsWithCheckpoints
@@ -250,6 +251,21 @@ export async function remove(req, res) {
     const { id } = req.params
     await deleteScan(id)
     res.json({ message: 'Scan removed' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+// Remove multiple scans (admin)
+export async function removeBulk(req, res) {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean) : []
+    if (!ids.length) {
+      return res.status(400).json({ message: 'ids is required and must be a non-empty array' })
+    }
+
+    const deletedCount = await deleteScansByIds(ids)
+    res.json({ message: 'Scans removed', deletedCount })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

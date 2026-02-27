@@ -247,6 +247,23 @@ export async function deleteScan(id) {
   return true
 }
 
+// Delete scans by ids, optionally scoped to a specific guard
+export async function deleteScansByIds(ids = [], options = {}) {
+  if (!Array.isArray(ids) || ids.length === 0) return 0
+
+  const where = {
+    id: {
+      [sequelize.Sequelize.Op.in]: ids
+    }
+  }
+
+  if (typeof options.guardId === 'number') {
+    where.guardId = options.guardId
+  }
+
+  return await Scan.destroy({ where })
+}
+
 // ==================== ADMIN OPERATIONS ====================
 
 // Get admin by email
