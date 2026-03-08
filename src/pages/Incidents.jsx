@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   IconAlertCircle,
   IconClock,
@@ -13,12 +14,14 @@ import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
 export default function Incidents() {
+  const location = useLocation()
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState('')
   const [previewImage, setPreviewImage] = useState(null)
   const [previewTitle, setPreviewTitle] = useState('')
+  const [highlightedIncidentId, setHighlightedIncidentId] = useState('')
 
   useEffect(() => {
     let active = true
@@ -62,6 +65,24 @@ export default function Incidents() {
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [previewImage])
+
+  useEffect(() => {
+    if (!incidents.length) return
+    const params = new URLSearchParams(location.search)
+    const incidentId = params.get('incidentId')
+    if (!incidentId) return
+
+    const target = incidents.find(incident => incident.id === incidentId)
+    if (!target) return
+
+    const element = document.getElementById(`incident-${incidentId}`)
+    if (!element) return
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedIncidentId(incidentId)
+    const timer = setTimeout(() => setHighlightedIncidentId(''), 2600)
+    return () => clearTimeout(timer)
+  }, [incidents, location.search])
 
   useEffect(() => {
     if (!previewImage) return undefined
@@ -147,7 +168,12 @@ export default function Incidents() {
             {incidents.map(incident => (
               <div
                 key={incident.id}
-                className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-muted)] p-4 space-y-3 transition-all duration-200 hover:shadow-[var(--shadow)] hover:-translate-y-0.5"
+                id={`incident-${incident.id}`}
+                className={`rounded-2xl border p-4 space-y-3 transition-all duration-300 hover:shadow-[var(--shadow)] hover:-translate-y-0.5 ${
+                  highlightedIncidentId === incident.id
+                    ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent)]/35 bg-[color:var(--accent-soft)]'
+                    : 'border-[color:var(--border)] bg-[color:var(--bg-muted)]'
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">

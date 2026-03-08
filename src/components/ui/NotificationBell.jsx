@@ -47,6 +47,10 @@ function formatTimeAgo(timeAgoMinutes) {
   return `${days}d ago`
 }
 
+function canUseBrowserNotifications() {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
 export default function NotificationBell() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -56,6 +60,9 @@ export default function NotificationBell() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
   const panelRef = useRef(null)
   const previousUnreadIdsRef = useRef(new Set())
+  const hasLoadedNotificationsRef = useRef(false)
+  const popupQueueRef = useRef([])
+  const popupQueueRunningRef = useRef(false)
   const criticalAudioRef = useRef(null)
   const standardAudioRef = useRef(null)
 
@@ -102,12 +109,16 @@ export default function NotificationBell() {
   function buildActionPath(item) {
     const action = item.action
     if (!action?.path) return null
-    if (item.type === 'reassign_needed') {
-      const guardId = action.params?.guardId
-      const checkpointId = action.params?.checkpointId
-      if (guardId && checkpointId) {
-        return `${action.path}?highlightGuard=${encodeURIComponent(guardId)}&highlightCheckpoint=${encodeURIComponent(checkpointId)}`
-      }
+    const params = action.params || {}
+    const query = new URLSearchParams()
+
+    if (params.guardId) query.set('highlightGuard', String(params.guardId))
+    if (params.checkpointId) query.set('highlightCheckpoint', String(params.checkpointId))
+    if (params.incidentId) query.set('incidentId', String(params.incidentId))
+
+    const queryString = query.toString()
+    if (queryString) {
+      return `${action.path}?${queryString}`
     }
     return action.path
   }
@@ -116,7 +127,8 @@ export default function NotificationBell() {
     const action = item.action || {}
     const guardId = action.params?.guardId || ''
     const checkpointId = action.params?.checkpointId || ''
-    return `${item.type}::${item.title}::${item.severity}::${guardId}::${checkpointId}`
+    const incidentId = action.params?.incidentId || ''
+    return `${item.type}::${item.title}::${item.severity}::${guardId}::${checkpointId}::${incidentId}`
   }
 
   function groupNotifications(notifications) {
@@ -367,6 +379,12 @@ export default function NotificationBell() {
         <button
           onClick={() => {
             toast.dismiss(toastId)
+            markIdsRead([item.id], true)
+            const path = buildActionPath(item)
+            if (path) {
+              navigate(path)
+              return
+            }
             setOpen(true)
             setFilter('all')
           }}
@@ -381,8 +399,51 @@ export default function NotificationBell() {
           </div>
         </button>
       ),
-      { id: toastId, duration: 1000 }
+      { id: toastId, duration: 5000 }
     )
+  }
+
+  function runPopupQueue() {
+    if (popupQueueRunningRef.current) return
+
+    const nextItem = popupQueueRef.current.shift()
+    if (!nextItem) return
+
+    popupQueueRunningRef.current = true
+    showIncomingPopup(nextItem)
+
+    window.setTimeout(() => {
+      popupQueueRunningRef.current = false
+      runPopupQueue()
+    }, 5200)
+  }
+
+  function enqueueIncomingPopups(nextItems) {
+    if (!nextItems.length) return
+    popupQueueRef.current.push(...nextItems)
+    runPopupQueue()
+  }
+
+  function showSystemNotification(item) {
+    if (!canUseBrowserNotifications()) return
+    if (Notification.permission !== 'granted') return
+
+    try {
+      const notification = new Notification(item.title, {
+        body: item.detail,
+        tag: item.id,
+        renotify: true,
+      })
+
+      notification.onclick = () => {
+        window.focus()
+        const path = buildActionPath(item)
+        if (path) navigate(path)
+        notification.close()
+      }
+    } catch {
+      // ignore browser notification errors
+    }
   }
 
   async function loadNotifications() {
@@ -424,19 +485,29 @@ export default function NotificationBell() {
       const unreadIds = new Set(groupedItems.filter(item => item.unread).map(item => item.id))
       const previousUnread = previousUnreadIdsRef.current
       const newItems = groupedItems.filter(item => item.unread && !previousUnread.has(item.id))
-      const hasNewCritical = newItems.some(item => item.severity === 'critical')
-      const hasNewNonCritical = newItems.some(item => item.severity !== 'critical')
-
-      if (hasNewCritical) {
-        playCriticalNotificationSound()
-      } else if (hasNewNonCritical) {
-        playStandardNotificationSound()
+      if (!hasLoadedNotificationsRef.current) {
+        hasLoadedNotificationsRef.current = true
+        previousUnreadIdsRef.current = unreadIds
+        return
       }
 
-      if (location.pathname === '/dashboard' && newItems.length > 0) {
-        newItems.forEach(showIncomingPopup)
-      }
+      if (newItems.length > 0) {
+        const hasNewCritical = newItems.some(item => item.severity === 'critical')
+        const hasNewNonCritical = newItems.some(item => item.severity !== 'critical')
 
+        if (hasNewCritical) {
+          playCriticalNotificationSound()
+        } else if (hasNewNonCritical) {
+          playStandardNotificationSound()
+        }
+
+        if (document.visibilityState === 'visible') {
+          enqueueIncomingPopups(newItems)
+        } else {
+          const latestItem = newItems[0]
+          if (latestItem) showSystemNotification(latestItem)
+        }
+      }
       previousUnreadIdsRef.current = unreadIds
     } catch (err) {
       console.error('Failed to load notifications', err)
@@ -483,6 +554,29 @@ export default function NotificationBell() {
       window.removeEventListener('touchstart', unlockAudio)
       window.removeEventListener('pointerdown', unlockAudio)
       window.removeEventListener('keydown', unlockAudio)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!canUseBrowserNotifications()) return undefined
+
+    const requestPermission = () => {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {})
+      }
+      window.removeEventListener('pointerdown', requestPermission)
+      window.removeEventListener('keydown', requestPermission)
+      window.removeEventListener('touchstart', requestPermission)
+    }
+
+    window.addEventListener('pointerdown', requestPermission, { once: true })
+    window.addEventListener('keydown', requestPermission, { once: true })
+    window.addEventListener('touchstart', requestPermission, { once: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', requestPermission)
+      window.removeEventListener('keydown', requestPermission)
+      window.removeEventListener('touchstart', requestPermission)
     }
   }, [])
 

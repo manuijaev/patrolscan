@@ -389,6 +389,9 @@ export async function getNotifications(req, res) {
         action: {
           path: '/reports',
           label: 'Open Incidents',
+          params: {
+            incidentId: String(incident.id),
+          },
         },
       })
     }
