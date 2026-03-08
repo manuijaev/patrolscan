@@ -4,7 +4,7 @@ import {
   IconUsers,
   IconMapPin,
   IconQrcode,
-  IconReportAnalytics,
+  IconAlertCircle,
   IconShieldCheck,
   IconLogout,
   IconX,
@@ -18,7 +18,7 @@ const menu = [
   { name: 'Guards', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
-  { name: 'Reports', path: '/reports', icon: IconReportAnalytics },
+  { name: 'Incidents', path: '/reports', icon: IconAlertCircle },
 ]
 
 export default function Sidebar({ variant = 'desktop', onClose }) {

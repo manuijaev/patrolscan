@@ -74,6 +74,14 @@ export default function ScanQR() {
   const [deleteRange, setDeleteRange] = useState('7d')
   const [deletingScans, setDeletingScans] = useState(false)
 
+  // Incident reporting state
+  const [incidentCheckpointId, setIncidentCheckpointId] = useState('')
+  const [incidentComment, setIncidentComment] = useState('')
+  const [incidentImages, setIncidentImages] = useState([])
+  const [incidentSubmitting, setIncidentSubmitting] = useState(false)
+  const [availableCheckpoints, setAvailableCheckpoints] = useState([])
+  const [loadingCheckpoints, setLoadingCheckpoints] = useState(false)
+
   // Theme state
   const [darkMode, setDarkMode] = useState(() => {
     const stored = localStorage.getItem('theme')
@@ -91,6 +99,8 @@ export default function ScanQR() {
   const wasOnlineRef = useRef(true) // Track previous online status to prevent duplicate toasts
   const [activeCooldownCheckpoint, setActiveCooldownCheckpoint] = useState(null) // Track which checkpoint is in cooldown
   const isFirstMount = useRef(true)
+  const incidentCameraInputRef = useRef(null)
+  const incidentLibraryInputRef = useRef(null)
 
   // Theme toggle effect
   useEffect(() => {
@@ -183,6 +193,31 @@ export default function ScanQR() {
     } else {
       // No active cooldown - load scans normally
       loadRecentScans()
+    }
+  }, [])
+
+  // Load checkpoints for incident reporting
+  useEffect(() => {
+    let active = true
+
+    async function loadCheckpoints() {
+      try {
+        setLoadingCheckpoints(true)
+        const token = getToken()
+        const res = await api.get('/checkpoints', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (active) setAvailableCheckpoints(res.data || [])
+      } catch (err) {
+        console.error('Failed to load checkpoints for incidents', err)
+      } finally {
+        if (active) setLoadingCheckpoints(false)
+      }
+    }
+
+    loadCheckpoints()
+    return () => {
+      active = false
     }
   }, [])
 
@@ -455,20 +490,20 @@ export default function ScanQR() {
       // Prevent duplicate calls
       if (scanCompletedRef.current || scanState !== 'processing') return
       
-      console.log('Processing timeout - auto-resolving')
-      // Determine success/failure based on QR validity
-      try {
-        const qrData = JSON.parse(decodedText)
-        if (qrData.type === 'patrol-checkpoint' && qrData.id) {
-          // Valid QR - show success
-          completeScan(true, qrData.id, qrData.checkpointName || qrData.name)
-        } else {
-          // Invalid QR - show failure
+        console.log('Processing timeout - auto-resolving')
+        // Determine success/failure based on QR validity
+        try {
+          const qrData = JSON.parse(decodedText)
+          if (qrData.type === 'patrol-checkpoint' && qrData.id) {
+            // Valid QR - show success
+            completeScan(true, qrData.id, qrData.checkpointName || qrData.name)
+          } else {
+            // Invalid QR - show failure
+            completeScan(false)
+          }
+        } catch {
+          // Invalid JSON - show failure
           completeScan(false)
-        }
-      } catch {
-        // Invalid JSON - show failure
-        completeScan(false)
       }
     }, MAX_PROCESSING_TIME)
 
@@ -574,7 +609,7 @@ export default function ScanQR() {
           
           // Check if guard is designated for this checkpoint
           isDesignated = res.data.designated === true
-
+          
           const result = res.data.result || 'passed'
           const failureReason = res.data.failureReason
 
@@ -869,6 +904,80 @@ export default function ScanQR() {
       toast.success('Recent scans removed from scanner history')
     } finally {
       setDeletingScans(false)
+    }
+  }
+
+  async function filesToDataUrls(files) {
+    return Promise.all(
+      files.map(
+        file =>
+          new Promise(resolve => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result)
+            reader.readAsDataURL(file)
+          })
+      )
+    )
+  }
+
+  async function appendIncidentImages(files) {
+    if (!files.length) return
+
+    const dataUrls = await filesToDataUrls(files)
+
+    setIncidentImages(prev => {
+      const combined = [...prev, ...dataUrls]
+      if (combined.length > 10) {
+        toast.error('You can attach up to 10 photos')
+      }
+      return combined.slice(0, 10)
+    })
+  }
+
+  async function handleIncidentImagesChange(e) {
+    const files = Array.from(e.target.files || [])
+    await appendIncidentImages(files)
+    e.target.value = ''
+  }
+
+  function removeIncidentImage(indexToRemove) {
+    setIncidentImages(prev => prev.filter((_, idx) => idx !== indexToRemove))
+  }
+
+  async function handleSubmitIncident(e) {
+    e.preventDefault()
+    if (!incidentCheckpointId) {
+      toast.error('Please select a checkpoint')
+      return
+    }
+    if (!incidentComment.trim()) {
+      toast.error('Please describe the incident')
+      return
+    }
+
+    setIncidentSubmitting(true)
+    try {
+      const token = getToken()
+      await api.post(
+        '/incidents',
+        {
+          checkpointId: incidentCheckpointId,
+          comment: incidentComment.trim(),
+          images: incidentImages,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      toast.success('Incident reported successfully')
+      setIncidentCheckpointId('')
+      setIncidentComment('')
+      setIncidentImages([])
+    } catch (err) {
+      console.error('Failed to submit incident', err)
+      toast.error('Failed to submit incident. Please try again.')
+    } finally {
+      setIncidentSubmitting(false)
     }
   }
 
@@ -1170,11 +1279,11 @@ export default function ScanQR() {
             </div>
           </div>
 
-          {/* Recent Scans Panel */}
+          {/* Right column: history, incident reporting, quick stats */}
           <div className="space-y-6">
             {showPatrolHistory ? (
               // Patrol History View
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
                     <button 
@@ -1309,9 +1418,9 @@ export default function ScanQR() {
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
-                    Recent Scans
-                  </h2>
+                <IconHistory size={22} className="text-purple-600 dark:text-purple-400" />
+                Recent Scans
+              </h2>
                   {lastScans.length > 0 && (
                     <button 
                       onClick={() => setShowPatrolHistory(true)}
@@ -1322,34 +1431,34 @@ export default function ScanQR() {
                   )}
                 </div>
 
-                {lastScans.length > 0 ? (
+              {lastScans.length > 0 ? (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {lastScans.slice(0, 2).map((scan) => (
-                      <div
-                        key={scan.id || scan.timestamp}
-                        className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <div className="flex items-start gap-3">
+                    <div
+                      key={scan.id || scan.timestamp}
+                      className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
                             scan.success 
                               ? 'bg-green-100 dark:bg-green-900/30' 
                               : 'bg-red-100 dark:bg-red-900/30'
                           }`}>
                             {scan.success ? (
-                              <IconCheck size={20} className="text-green-600 dark:text-green-400" />
+                          <IconCheck size={20} className="text-green-600 dark:text-green-400" />
                             ) : (
                               <IconX size={20} className="text-red-600 dark:text-red-400" />
                             )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 dark:text-white truncate">
                               {scan.name || scan.checkpointName || 'Unknown Checkpoint'}
-                            </p>
-                            <div className="flex items-center gap-3 mt-2">
-                              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                                <IconClock size={14} />
+                          </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                              <IconClock size={14} />
                                 <span>{formatDateWithLabel(scan.timestamp)}</span>
-                              </div>
+                            </div>
                               <span className={`text-xs px-2 py-1 rounded-full ${
                                 scan.success 
                                   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
@@ -1357,30 +1466,142 @@ export default function ScanQR() {
                               }`}>
                                 {scan.success ? 'Passed' : 'Failed'}
                               </span>
-                            </div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                      <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
                     </div>
-                    <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      No scans yet
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Start scanning checkpoint QR codes
-                    </p>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                    <IconQrcode size={32} className="text-gray-400 dark:text-gray-600" />
+                  </div>
+                  <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    No scans yet
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Start scanning checkpoint QR codes
+                  </p>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+              )}
           </div>
 
-          {/* Quick Stats */}
+            {/* Incident reporting card */}
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 className="font-medium mb-1 flex items-center gap-2">
+                <IconAlertCircle size={18} className="text-blue-600 dark:text-blue-400" />
+                Report Incident
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Select a checkpoint, describe what happened, and attach one or more photos.
+              </p>
+              <form onSubmit={handleSubmitIncident} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600 dark:text-gray-300">
+                    Checkpoint
+                  </label>
+                  <select
+                    value={incidentCheckpointId}
+                    onChange={e => setIncidentCheckpointId(e.target.value)}
+                    className="w-full rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs focus:outline-none focus:border-[color:var(--accent)]"
+                  >
+                    <option value="">Select checkpoint…</option>
+                    {loadingCheckpoints && <option>Loading…</option>}
+                    {availableCheckpoints.map(cp => (
+                      <option key={cp.id} value={cp.id}>
+                        {cp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600 dark:text-gray-300">
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={incidentComment}
+                    onChange={e => setIncidentComment(e.target.value)}
+                    className="w-full rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs focus:outline-none focus:border-[color:var(--accent)] resize-none"
+                    placeholder="Describe the incident…"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600 dark:text-gray-300">
+                    Photos (optional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => incidentCameraInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <IconCamera size={14} />
+                      Take Photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => incidentLibraryInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      Choose Images
+                    </button>
+                  </div>
+                  <input
+                    ref={incidentCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleIncidentImagesChange}
+                    className="hidden"
+                  />
+                  <input
+                    ref={incidentLibraryInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleIncidentImagesChange}
+                    className="hidden"
+                  />
+                  {incidentImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-1 mt-1">
+                      {incidentImages.map((src, idx) => (
+                        <div key={idx} className="relative">
+                          <img
+                            src={src}
+                            alt={`Incident preview ${idx + 1}`}
+                            className="h-16 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeIncidentImage(idx)}
+                            className="absolute -top-1 -right-1 rounded-full p-0.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200"
+                            aria-label={`Remove photo ${idx + 1}`}
+                          >
+                            <IconX size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={incidentSubmitting}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[color:var(--accent)] hover:bg-[color:var(--accent-strong)] text-white text-xs font-medium disabled:opacity-60"
+                >
+                  {incidentSubmitting ? 'Submitting…' : 'Submit Incident'}
+                </button>
+              </form>
+            </div>
+
+            {/* Quick Stats */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4">
               <h3 className="font-medium mb-3">Today's Stats</h3>
               <div className="space-y-3">

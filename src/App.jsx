@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Patrols from './pages/Patrols'
 import Guards from './pages/Guards'
 import Checkpoints from './pages/Checkpoints'
-import Reports from './pages/Reports'
+import Incidents from './pages/Incidents'
 import ScanQR from './pages/ScanQR'
 import UpcomingPatrols from './pages/UpcomingPatrols'
 
@@ -58,7 +58,7 @@ export default function App() {
         <Route path="checkpoints" element={<Checkpoints />} />
         <Route path="patrols" element={<Patrols />} />
         <Route path="upcoming-patrols" element={<UpcomingPatrols />} />
-        <Route path="reports" element={<Reports />} />
+        <Route path="reports" element={<Incidents />} />
       </Route>
 
       {/* Guard App */}
