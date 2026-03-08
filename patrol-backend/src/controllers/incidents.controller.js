@@ -1,6 +1,5 @@
 import * as incidents from '../data/incidents.js'
-import * as checkpoints from '../data/checkpoints.js'
-import { getGuards } from '../data/users.js'
+import * as db from '../db/models/index.js'
 
 // Guard creates incident
 export const create = async (req, res) => {
@@ -20,7 +19,7 @@ export const create = async (req, res) => {
       return res.status(400).json({ error: 'Incident description is required' })
     }
 
-    const checkpoint = await checkpoints.getById(checkpointId)
+    const checkpoint = await db.getCheckpointById(checkpointId)
     if (!checkpoint) {
       return res.status(404).json({ error: 'Checkpoint not found' })
     }
@@ -47,13 +46,13 @@ export const create = async (req, res) => {
 export const getAll = async (req, res) => {
   try {
     const allIncidents = await incidents.getAll()
-    const guards = getGuards()
-    const allCheckpoints = await checkpoints.getAll()
+    const guards = await db.getAllGuards()
+    const allCheckpoints = await db.getAllCheckpoints()
 
     const enriched = allIncidents
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .map(incident => {
-        const guard = guards.find(g => g.id === incident.guardId)
+        const guard = guards.find(g => String(g.id) === String(incident.guardId))
         const checkpoint = allCheckpoints.find(cp => cp.id === incident.checkpointId)
         return {
           ...incident,
@@ -67,4 +66,3 @@ export const getAll = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch incidents' })
   }
 }
-
