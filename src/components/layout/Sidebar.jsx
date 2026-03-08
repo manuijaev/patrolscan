@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   IconLayoutDashboard,
   IconUsers,
@@ -11,6 +12,8 @@ import {
   IconCalendarTime
 } from '@tabler/icons-react'
 import { logout } from '../../auth/authStore'
+import { getToken } from '../../auth/authStore'
+import api from '../../api/axios'
 
 const menu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
@@ -20,8 +23,74 @@ const menu = [
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
   { name: 'Incidents', path: '/reports', icon: IconAlertCircle },
 ]
+const INCIDENTS_SEEN_AT_KEY = 'admin_incidents_seen_at_v1'
 
 export default function Sidebar({ variant = 'desktop', onClose }) {
+  const location = useLocation()
+  const [incidentCount, setIncidentCount] = useState(0)
+
+  function getSeenAt() {
+    return localStorage.getItem(INCIDENTS_SEEN_AT_KEY)
+  }
+
+  function setSeenAt(value) {
+    if (!value) return
+    localStorage.setItem(INCIDENTS_SEEN_AT_KEY, value)
+  }
+
+  useEffect(() => {
+    let active = true
+
+    if (location.pathname === '/reports') {
+      setIncidentCount(0)
+    }
+
+    async function loadIncidentCount(markAsSeen = false) {
+      try {
+        const token = getToken()
+        if (!token) return
+        const res = await api.get('/incidents', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (active) {
+          const items = Array.isArray(res.data) ? res.data : []
+          const latestCreatedAt = items[0]?.createdAt || null
+
+          if (markAsSeen) {
+            if (latestCreatedAt) setSeenAt(latestCreatedAt)
+            setIncidentCount(0)
+            return
+          }
+
+          const seenAt = getSeenAt()
+          if (!seenAt) {
+            if (latestCreatedAt) setSeenAt(latestCreatedAt)
+            setIncidentCount(0)
+            return
+          }
+
+          const unseenCount = items.filter(incident => {
+            if (!incident?.createdAt) return false
+            return new Date(incident.createdAt) > new Date(seenAt)
+          }).length
+          setIncidentCount(unseenCount)
+        }
+      } catch {
+        // silent fail in nav badge
+      }
+    }
+
+    const onIncidentsChanged = () => loadIncidentCount()
+    window.addEventListener('incidents:changed', onIncidentsChanged)
+    loadIncidentCount(location.pathname === '/reports')
+    const intervalId = setInterval(loadIncidentCount, 30000)
+
+    return () => {
+      active = false
+      window.removeEventListener('incidents:changed', onIncidentsChanged)
+      clearInterval(intervalId)
+    }
+  }, [location.pathname])
 
   function handleLogout() {
     logout()
@@ -75,6 +144,14 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
               className="group-hover:text-[color:var(--accent)] transition"
             />
             <span className="font-medium">{name}</span>
+            {name === 'Incidents' && incidentCount > 0 && (
+              <span
+                className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white"
+                aria-label={`${incidentCount} incidents`}
+              >
+                {incidentCount > 99 ? '99+' : incidentCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

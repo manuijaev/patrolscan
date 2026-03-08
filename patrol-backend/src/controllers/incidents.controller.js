@@ -66,3 +66,16 @@ export const getAll = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch incidents' })
   }
 }
+
+// Admin deletes incident
+export const remove = async (req, res) => {
+  try {
+    const deleted = await incidents.remove(req.params.id)
+    if (!deleted) {
+      return res.status(404).json({ error: 'Incident not found' })
+    }
+    res.json({ message: 'Incident deleted successfully' })
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete incident' })
+  }
+}

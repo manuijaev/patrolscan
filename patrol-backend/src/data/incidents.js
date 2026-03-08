@@ -51,3 +51,10 @@ export async function create(incident) {
   return newIncident
 }
 
+export async function remove(id) {
+  const incidents = await readData()
+  const nextIncidents = incidents.filter(inc => inc.id !== id)
+  if (nextIncidents.length === incidents.length) return false
+  await writeData(nextIncidents)
+  return true
+}

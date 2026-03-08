@@ -1,6 +1,7 @@
 import { getAllScans } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
 import { getGuardsWithCheckpoints, getCheckpointResetDate } from '../db/models/index.js'
+import { getAll as getAllIncidents } from '../data/incidents.js'
 
 const RESPONSE_SLA_SECONDS = 15 * 60
 const notificationStateByAdmin = new Map()
@@ -351,6 +352,7 @@ export async function getNotifications(req, res) {
   try {
     const adminId = Number(req.user?.id || 0)
     const scans = await getAllScans()
+    const incidents = await getAllIncidents()
     const allGuards = await getGuardsWithCheckpoints()
     const guards = allGuards.filter(g => g.isActive !== false)
     const checkpoints = await getAllCheckpoints()
@@ -365,6 +367,31 @@ export async function getNotifications(req, res) {
     const reassignStaleSince = new Date(now.getTime() - reassignStaleHours * 60 * 60 * 1000)
 
     const notifications = []
+
+    // 0) Incident reports from guards
+    const recentIncidents = [...incidents]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 25)
+
+    for (const incident of recentIncidents) {
+      const guardName = guardNameById.get(Number(incident.guardId)) || 'Unknown Guard'
+      const checkpoint = checkpointById.get(String(incident.checkpointId))
+      const checkpointName = checkpoint?.name || 'Unknown Checkpoint'
+      const hasImages = Array.isArray(incident.images) && incident.images.length > 0
+      notifications.push({
+        id: `incident-${incident.id}`,
+        type: 'incident_reported',
+        severity: 'critical',
+        title: 'Incident Reported',
+        detail: `${guardName} reported an incident at ${checkpointName}${hasImages ? ` with ${incident.images.length} photo(s)` : ''}.`,
+        time: incident.createdAt,
+        unread: true,
+        action: {
+          path: '/reports',
+          label: 'Open Incidents',
+        },
+      })
+    }
 
     // 1) Repeated location failures (same guard/checkpoint, >= 3 in 30 mins)
     const recentFailedScans = scans.filter(s => {

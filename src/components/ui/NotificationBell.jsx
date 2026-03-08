@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  IconAlertCircle,
   IconAlertTriangle,
   IconBell,
   IconCheck,
@@ -90,6 +91,7 @@ export default function NotificationBell() {
   }
 
   function getTypeIcon(type) {
+    if (type === 'incident_reported') return <IconAlertCircle size={15} className="text-red-500" />
     if (type === 'repeated_location_failures') return <IconTargetArrow size={15} className="text-red-500" />
     if (type === 'unauthorized_attempt') return <IconShieldLock size={15} className="text-red-500" />
     if (type === 'reassign_needed') return <IconAlertTriangle size={15} className="text-amber-500" />
