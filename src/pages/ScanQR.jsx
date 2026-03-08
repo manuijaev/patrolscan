@@ -1043,6 +1043,8 @@ export default function ScanQR() {
       console.error('Failed to submit incident', err)
       if (err?.response?.status === 413) {
         toast.error('Photo upload is too large. Try fewer or smaller photos.')
+      } else if (err?.response?.status === 404) {
+        toast.error('Incident API route not found. Check backend URL configuration.')
       } else {
         toast.error('Failed to submit incident. Please try again.')
       }
