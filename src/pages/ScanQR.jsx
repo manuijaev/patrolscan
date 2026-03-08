@@ -105,6 +105,12 @@ export default function ScanQR() {
   const incidentCameraInputRef = useRef(null)
   const incidentLibraryInputRef = useRef(null)
 
+  const handleUnauthorizedSession = useCallback(() => {
+    toast.error('Session expired. Please sign in again.')
+    logout()
+    navigate('/guard-login', { replace: true })
+  }, [navigate])
+
   // Theme toggle effect
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -213,6 +219,10 @@ export default function ScanQR() {
         if (active) setAvailableCheckpoints(res.data || [])
       } catch (err) {
         console.error('Failed to load checkpoints for incidents', err)
+        if (err?.response?.status === 401) {
+          handleUnauthorizedSession()
+          return
+        }
       } finally {
         if (active) setLoadingCheckpoints(false)
       }
@@ -222,7 +232,7 @@ export default function ScanQR() {
     return () => {
       active = false
     }
-  }, [])
+  }, [handleUnauthorizedSession])
 
   async function getLocation() {
     if ('geolocation' in navigator) {
@@ -1024,6 +1034,10 @@ export default function ScanQR() {
       }
 
       const token = getToken()
+      if (!token) {
+        handleUnauthorizedSession()
+        return
+      }
       await api.post(
         '/incidents',
         {
@@ -1041,8 +1055,15 @@ export default function ScanQR() {
       setIncidentImages([])
     } catch (err) {
       console.error('Failed to submit incident', err)
+      console.error('Incident request target:', {
+        baseURL: err?.config?.baseURL,
+        url: err?.config?.url,
+        method: err?.config?.method,
+      })
       if (err?.response?.status === 413) {
         toast.error('Photo upload is too large. Try fewer or smaller photos.')
+      } else if (err?.response?.status === 401) {
+        handleUnauthorizedSession()
       } else if (err?.response?.status === 404) {
         toast.error('Incident API route not found. Check backend URL configuration.')
       } else {
