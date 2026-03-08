@@ -31,6 +31,9 @@ import { getToken, getUser, logout } from '../auth/authStore'
 const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
 const FAIL_COOLDOWN_MS = 10000 // 10 seconds for failed scans
 const MAX_PROCESSING_TIME = 10000 // 10 seconds max processing time
+const MAX_INCIDENT_IMAGES = 10
+const MAX_INCIDENT_IMAGE_DATA_URL_LENGTH = 1_500_000
+const MAX_INCIDENT_TOTAL_DATA_URL_LENGTH = 8_000_000
 
 function getDeletionRangeStart(range) {
   const now = new Date()
@@ -907,17 +910,74 @@ export default function ScanQR() {
     }
   }
 
+  async function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(new Error('Failed to read selected image'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('Failed to process selected image'))
+      img.src = dataUrl
+    })
+  }
+
+  async function compressIncidentImage(file) {
+    const originalDataUrl = await readFileAsDataUrl(file)
+    const image = await loadImageFromDataUrl(originalDataUrl)
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return originalDataUrl
+
+    let width = image.naturalWidth || image.width
+    let height = image.naturalHeight || image.height
+    const maxSide = 1280
+
+    if (width > maxSide || height > maxSide) {
+      const scale = Math.min(maxSide / width, maxSide / height)
+      width = Math.max(1, Math.round(width * scale))
+      height = Math.max(1, Math.round(height * scale))
+    }
+
+    canvas.width = width
+    canvas.height = height
+    ctx.drawImage(image, 0, 0, width, height)
+
+    let quality = 0.8
+    let nextDataUrl = canvas.toDataURL('image/jpeg', quality)
+
+    while (nextDataUrl.length > MAX_INCIDENT_IMAGE_DATA_URL_LENGTH && quality > 0.45) {
+      quality = Math.max(0.45, quality - 0.1)
+      nextDataUrl = canvas.toDataURL('image/jpeg', quality)
+    }
+
+    // If still too large, progressively reduce dimensions.
+    while (nextDataUrl.length > MAX_INCIDENT_IMAGE_DATA_URL_LENGTH && canvas.width > 480 && canvas.height > 480) {
+      const nextWidth = Math.max(480, Math.round(canvas.width * 0.85))
+      const nextHeight = Math.max(480, Math.round(canvas.height * 0.85))
+      canvas.width = nextWidth
+      canvas.height = nextHeight
+      ctx.drawImage(image, 0, 0, nextWidth, nextHeight)
+      nextDataUrl = canvas.toDataURL('image/jpeg', quality)
+    }
+
+    return nextDataUrl
+  }
+
   async function filesToDataUrls(files) {
-    return Promise.all(
-      files.map(
-        file =>
-          new Promise(resolve => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.readAsDataURL(file)
-          })
-      )
-    )
+    const dataUrls = []
+    for (const file of files) {
+      const dataUrl = await compressIncidentImage(file)
+      dataUrls.push(dataUrl)
+    }
+    return dataUrls
   }
 
   async function appendIncidentImages(files) {
@@ -927,10 +987,10 @@ export default function ScanQR() {
 
     setIncidentImages(prev => {
       const combined = [...prev, ...dataUrls]
-      if (combined.length > 10) {
+      if (combined.length > MAX_INCIDENT_IMAGES) {
         toast.error('You can attach up to 10 photos')
       }
-      return combined.slice(0, 10)
+      return combined.slice(0, MAX_INCIDENT_IMAGES)
     })
   }
 
@@ -957,6 +1017,12 @@ export default function ScanQR() {
 
     setIncidentSubmitting(true)
     try {
+      const totalImagesPayload = incidentImages.reduce((sum, image) => sum + image.length, 0)
+      if (totalImagesPayload > MAX_INCIDENT_TOTAL_DATA_URL_LENGTH) {
+        toast.error('Selected photos are too large. Remove some photos and try again.')
+        return
+      }
+
       const token = getToken()
       await api.post(
         '/incidents',
@@ -975,7 +1041,11 @@ export default function ScanQR() {
       setIncidentImages([])
     } catch (err) {
       console.error('Failed to submit incident', err)
-      toast.error('Failed to submit incident. Please try again.')
+      if (err?.response?.status === 413) {
+        toast.error('Photo upload is too large. Try fewer or smaller photos.')
+      } else {
+        toast.error('Failed to submit incident. Please try again.')
+      }
     } finally {
       setIncidentSubmitting(false)
     }
