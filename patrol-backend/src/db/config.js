@@ -6,6 +6,32 @@ dotenv.config()
 // Check if we have a DATABASE_URL (Render provides this)
 const useDatabaseUrl = !!process.env.DATABASE_URL
 
+const DEFAULT_DB_HOST_SUFFIX = '.postgres.render.com'
+
+function normalizeDbHost(host) {
+  if (!host) {
+    return host
+  }
+
+  const trimmed = host.trim()
+  if (!trimmed) {
+    return trimmed
+  }
+
+  if (trimmed.includes('.') || trimmed === 'localhost') {
+    return trimmed
+  }
+
+  const suffix = process.env.DB_HOST_SUFFIX ?? DEFAULT_DB_HOST_SUFFIX
+  if (!suffix) {
+    return trimmed
+  }
+
+  return `${trimmed}${suffix}`
+}
+
+const normalizedHost = normalizeDbHost(process.env.DB_HOST || 'localhost')
+
 // Create Sequelize instance
 const sequelize = useDatabaseUrl
   ? new Sequelize(process.env.DATABASE_URL, {
@@ -23,7 +49,7 @@ const sequelize = useDatabaseUrl
       process.env.DB_USER || 'postgres',
       process.env.DB_PASSWORD || 'postgres',
       {
-        host: process.env.DB_HOST || 'localhost',
+        host: normalizedHost,
         port: process.env.DB_PORT || 5432,
         dialect: 'postgres',
         logging: process.env.NODE_ENV === 'development' ? console.log : false,
