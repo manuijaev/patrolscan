@@ -6,7 +6,7 @@ dotenv.config()
 // Check if we have a DATABASE_URL (Render provides this)
 const useDatabaseUrl = !!process.env.DATABASE_URL
 
-const DEFAULT_DB_HOST_SUFFIX = '.postgres.render.com'
+const HOST_SUFFIX_OVERRIDE = process.env.DB_HOST_SUFFIX?.trim()
 
 function normalizeDbHost(host) {
   if (!host) {
@@ -22,12 +22,11 @@ function normalizeDbHost(host) {
     return trimmed
   }
 
-  const suffix = process.env.DB_HOST_SUFFIX ?? DEFAULT_DB_HOST_SUFFIX
-  if (!suffix) {
+  if (!HOST_SUFFIX_OVERRIDE) {
     return trimmed
   }
 
-  return `${trimmed}${suffix}`
+  return `${trimmed}${HOST_SUFFIX_OVERRIDE}`
 }
 
 function normalizeDatabaseUrl(rawUrl) {
@@ -37,8 +36,11 @@ function normalizeDatabaseUrl(rawUrl) {
 
   try {
     const url = new URL(rawUrl)
+  if (HOST_SUFFIX_OVERRIDE) {
     url.hostname = normalizeDbHost(url.hostname)
     return url.toString()
+  }
+  return rawUrl
   } catch {
     return rawUrl
   }
