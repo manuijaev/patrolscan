@@ -30,11 +30,26 @@ function normalizeDbHost(host) {
   return `${trimmed}${suffix}`
 }
 
+function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl) {
+    return rawUrl
+  }
+
+  try {
+    const url = new URL(rawUrl)
+    url.hostname = normalizeDbHost(url.hostname)
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
 const normalizedHost = normalizeDbHost(process.env.DB_HOST || 'localhost')
+const normalizedDatabaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL)
 
 // Create Sequelize instance
 const sequelize = useDatabaseUrl
-  ? new Sequelize(process.env.DATABASE_URL, {
+  ? new Sequelize(normalizedDatabaseUrl, {
       dialect: 'postgres',
       logging: process.env.NODE_ENV === 'development' ? console.log : false,
       pool: {
