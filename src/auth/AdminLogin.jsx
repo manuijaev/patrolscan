@@ -55,7 +55,8 @@ export default function AdminLogin() {
     setLoading(true)
 
     try {
-      const res = await api.post('/auth/admin/login', { email, password })
+      const normalizedEmail = email.trim().toLowerCase()
+      const res = await api.post('/auth/admin/login', { email: normalizedEmail, password })
       saveAuth(res.data.token, { role: 'admin' }, rememberMe)
       setIsSuccess(true)
       setTimeout(() => navigate('/dashboard'), 600)

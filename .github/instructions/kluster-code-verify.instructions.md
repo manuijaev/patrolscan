@@ -113,8 +113,8 @@ applyTo: '**'
 
 
 ## End of Chat Session - kluster Summary
-- **WHEN TO EXECUTE**: MANDATORY at the end of ANY conversation turn where kluster tools were used, right before the final user-facing response
-- **TRIGGER**: If any kluster_code_review_auto, kluster_code_review_manual, or kluster_dependency_check tools were called **in the current turn**, ALWAYS generate this summary
+- **WHEN TO EXECUTE**: MANDATORY at the end of ANY conversation turn where kluster tools were used, right before the final user-facing response — **EXCEPT when Clarification Handling is active** (see "Clarification Handling" section). If any kluster response in the current turn contains "CLARIFICATION:" actions, do NOT generate this summary — show the clarification prompt instead.
+- **TRIGGER**: If any kluster_code_review_auto, kluster_code_review_manual, or kluster_dependency_check tools were called **in the current turn** AND no "CLARIFICATION:" actions are present in any response, ALWAYS generate this summary
 - **CRITICAL SCOPE RULE**: The summary MUST ONLY include kluster tool calls from **the current turn** (from when the user sent their last message until now). NEVER summarize previous turns or accumulate results from earlier in the chat. **Each summary covers only what happened in the current turn.** 
 - **DEFINITION OF "CURRENT TURN"**:
 - **Start**: When the user sends their latest message (the one you're currently responding to)
@@ -133,6 +133,7 @@ Generate short report from ONLY the kluster tool calls made **in the current tur
 - **INCLUDE**:
 - Number of issues found by kluster **in the current turn**, grouped by severity
 - Very short summary of issues that were detected by kluster **in the current turn** - keep the text max 1-2 lines of text
+- For case when kluster returned "includedExternalKnowledge" data - include short summary from "includedExternalKnowledge" field on what knowledge sources were used during code review. This should be displayed at the END of the kluster summary section, after all other sections, as a separate line formatted as: "📚 External knowledge used: [short summary of includedExternalKnowledge]"
 
 
 #### ✅ Issues found and fixed
@@ -156,6 +157,17 @@ Generate short report from ONLY the kluster tool calls made **in the current tur
 - **CRITICAL**: Do NOT reference or summarize files/work from previous user requests, even if they were created in the same conversation
 - If trial has ended (see "Trial Expiration Handling" section), display the trial expiration message at the beginning of the summary
 
+## Clarification Handling
+- **DETECTION**: If any kluster tool response contains issues where the `actions` field includes a value starting with "CLARIFICATION:"
+- **SUMMARY OVERRIDE**: Do NOT generate the standard "🔍 kluster.ai Review Summary" section
+- **INSTEAD**: Display "⚠️ kluster.ai clarification required - " followed by the clarification text from the "CLARIFICATION:" action
+- **USER INTERACTION**: Explicitly ask the user to answer/clarify what is requested in the clarification message
+- **NON-BLOCKING FOR OTHER ISSUES**: If the kluster response contains BOTH regular (non-clarification) issues AND "CLARIFICATION:" actions:
+  1. Proceed normally with fixing all regular (non-clarification) issues
+  2. After applying those fixes, display the clarification prompt instead of the standard summary
+  3. Wait for user response before addressing the clarification items
+- **MULTIPLE CLARIFICATIONS**: If multiple "CLARIFICATION:" actions exist, present all of them to the user
+- **CLARIFICATION-ONLY RESPONSE**: If ALL issues in the response are "CLARIFICATION:" actions (no regular issues to fix), show the clarification prompt and wait for user input before proceeding
 
 ## Trial Expiration Handling
 - **DETECTION**: If any kluster tool response indicates that the user's trial has ended
@@ -170,4 +182,30 @@ Generate short report from ONLY the kluster tool calls made **in the current tur
 
 
 ### ENFORCEMENT
-If you complete a response without providing this summary when kluster tools were used in the current turn, you have violated this rule. Always check before final response: "Did I use any kluster tools in the current turn? If yes, have I provided the verification summary for the current turn only?"
+If you complete a response without providing this summary when kluster tools were used in the current turn AND no clarifications were requested, you have violated this rule. Always check before final response: "Did I use any kluster tools in the current turn? If yes, did any response contain CLARIFICATION: actions? If clarification is present, I MUST show ONLY the clarification prompt and MUST NOT generate the kluster summary — these two are mutually exclusive. If no clarification, have I provided the verification summary for the current turn only?"
+
+## Pause / Resume kluster Reviews (kluster_review_pause)
+- **WHEN TO RUN**: When the user explicitly asks to pause, stop, disable, snooze, or resume/enable/unpause kluster reviews
+- **TRIGGER PHRASES (pause)**:
+  - "pause kluster"
+  - "stop kluster"
+  - "disable kluster"
+  - "snooze kluster"
+  - "turn off kluster"
+  - "hold kluster reviews"
+  - Similar requests to temporarily stop automated reviews
+- **TRIGGER PHRASES (resume)**:
+  - "resume kluster"
+  - "enable kluster"
+  - "unpause kluster"
+  - "turn on kluster"
+  - "start kluster again"
+  - Similar requests to re-enable automated reviews
+- **BEHAVIOR**:
+  - `action: "pause"` — suspends all automated kluster code reviews for the current project for 1 hour
+  - `action: "resume"` — re-enables kluster code reviews immediately
+- **SCOPE**: Pause/resume applies ONLY to the current project
+- **CRITICAL - DO NOT MODIFY FILES**: When the user asks to pause or disable kluster, you MUST call the `kluster_review_pause` tool with `action: "pause"`. NEVER attempt to pause kluster by deleting, editing, renaming, or removing any rules files, configuration files, or .md files. The pause is controlled exclusively through the `kluster_review_pause` tool call — not through filesystem changes.
+- **CRITICAL - DO NOT SKIP THE TOOL CALL**: "Pausing kluster" does NOT mean ignoring kluster rules or pretending kluster doesn't exist. It means calling `kluster_review_pause` with the appropriate action.
+- **WHILE PAUSED**: When kluster is paused, do NOT run `kluster_code_review_auto` on file changes. Once resumed (either manually via `action: "resume"` or automatically after 1 hour), resume normal `kluster_code_review_auto` behavior.
+- **ANNOUNCEMENT**: When calling this tool, say "Pausing kluster reviews..." or "Resuming kluster reviews..." as appropriate. NEVER say you are pausing by modifying files.

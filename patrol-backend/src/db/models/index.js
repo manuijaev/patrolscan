@@ -268,12 +268,22 @@ export async function deleteScansByIds(ids = [], options = {}) {
 
 // Get admin by email
 export async function getAdminByEmail(email) {
-  return await Admin.findOne({ where: { email } })
+  if (!email) return null
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!normalizedEmail) return null
+
+  return await Admin.findOne({
+    where: sequelize.where(
+      sequelize.fn('lower', sequelize.col('email')),
+      normalizedEmail
+    )
+  })
 }
 
 // Create admin
 export async function createAdmin({ email, password, role = 'admin' }) {
-  return await Admin.create({ email, password, role })
+  const normalizedEmail = email?.trim().toLowerCase()
+  return await Admin.create({ email: normalizedEmail, password, role })
 }
 
 // Get all admins
