@@ -9,10 +9,12 @@ import {
   deleteScansByIds,
   getCheckpointById,
   getAllCheckpoints,
-  getGuardsWithCheckpoints
+  getGuardsWithCheckpoints,
+  getAdminById
 } from '../db/models/index.js'
 import { getGuardWithCheckpoints } from '../db/models/index.js'
 import { filterGuardsByUser, guardIdSet, filterScansByGuardIds } from '../utils/access.js'
+import { generateSlots } from '../utils/schedule.js'
 
 function toRad(value) {
   return (value * Math.PI) / 180
@@ -173,6 +175,44 @@ async function validateAndPersistScan({ guardId, payload }) {
     ? null
     : `Out of range. Distance ${distanceMeters.toFixed(2)}m (+/- ${scanAccuracy.toFixed(2)}m accuracy), allowed ${allowedRadius.toFixed(2)}m.`
 
+  // ============================================================
+  // SCHEDULED MODE: Check if scan is within allowed time slots
+  // ============================================================
+  const scanTime = new Date(scannedAt || timestamp || new Date().toISOString())
+  
+  // Get admin's patrol mode
+  const admin = await getAdminById(guard.adminId || 1)
+  const patrolMode = admin?.patrolMode || 'FREE'
+  
+  let scheduleViolation = null
+  
+  if (patrolMode === 'SCHEDULED') {
+    // Get schedule config for this admin
+    const ScheduleConfig = (await import('../db/models/ScheduleConfig.js')).default
+    const scheduleConfig = await ScheduleConfig.findOne({
+      where: { adminId: guard.adminId || 1 }
+    })
+    
+    if (scheduleConfig) {
+      const slots = generateSlots({
+        startTime: scheduleConfig.startTime,
+        endTime: scheduleConfig.endTime,
+        frequencyMinutes: scheduleConfig.frequencyMinutes
+      })
+      
+      // Check if scan time falls within any slot
+      const inSlot = slots.some(slot => {
+        const slotStart = new Date(slot.start)
+        const slotEnd = new Date(slot.end)
+        return scanTime >= slotStart && scanTime < slotEnd
+      })
+      
+      if (!inSlot) {
+        scheduleViolation = `Scanned outside scheduled hours. Scan time: ${scanTime.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}, scheduled: ${scheduleConfig.startTime} - ${scheduleConfig.endTime}`
+      }
+    }
+  }
+
   const scan = await dbCreateScan({
     guardId,
     checkpointId,
@@ -188,9 +228,12 @@ async function validateAndPersistScan({ guardId, payload }) {
       maxPossibleDistanceMeters: Number(maxPossibleDistance.toFixed(3))
     },
     result: validationResult,
-    failureReason: validationFailureReason || failureReason || null,
+    failureReason: validationFailureReason || failureReason || scheduleViolation || null,
     scannedAt: scannedAt || timestamp || new Date().toISOString()
   })
+
+  // Note: Schedule violations are logged as warnings but scan still passes
+  // This allows guards to scan outside hours with a note for review
 
   return {
     ok: true,
@@ -199,7 +242,7 @@ async function validateAndPersistScan({ guardId, payload }) {
       ...scan.toJSON(),
       designated: true,
       result: validationResult,
-      failureReason: validationFailureReason
+      failureReason: validationFailureReason || failureReason || scheduleViolation
     }
   }
 }
