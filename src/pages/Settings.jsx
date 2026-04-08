@@ -255,11 +255,29 @@ export default function Settings() {
                 <option value={15}>15 minutes</option>
                 <option value={30}>30 minutes</option>
                 <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
                 <option value={120}>2 hours</option>
+                <option value={180}>3 hours</option>
                 <option value={240}>4 hours</option>
+                <option value={360}>6 hours</option>
+                <option value={480}>8 hours</option>
               </select>
             </div>
           </div>
+
+          {/* Schedule Type Indicator */}
+          {(() => {
+            const [startH] = startTime.split(':').map(Number)
+            const [endH] = endTime.split(':').map(Number)
+            const isOvernight = endH < startH || (endH === 0)
+            return isOvernight ? (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-400">
+                  Overnight schedule: patrols run from {startTime} to {endH === 0 ? '24:00' : endTime} (next day)
+                </p>
+              </div>
+            ) : null
+          })()}
 
           <div className="flex gap-3">
             <button
@@ -354,11 +372,29 @@ export default function Settings() {
                 <option value={15}>15 minutes</option>
                 <option value={30}>30 minutes</option>
                 <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
                 <option value={120}>2 hours</option>
+                <option value={180}>3 hours</option>
                 <option value={240}>4 hours</option>
+                <option value={360}>6 hours</option>
+                <option value={480}>8 hours</option>
               </select>
             </div>
           </div>
+
+          {/* Schedule Type Indicator */}
+          {(() => {
+            const [startH] = startTime.split(':').map(Number)
+            const [endH] = endTime.split(':').map(Number)
+            const isOvernight = endH < startH || (endH === 0)
+            return isOvernight ? (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-400">
+                  Overnight schedule: patrols run from {startTime} to {endH === 0 ? '24:00' : endTime} (next day)
+                </p>
+              </div>
+            ) : null
+          })()}
 
           <div className="flex gap-3">
             <button

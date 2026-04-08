@@ -7,15 +7,21 @@ export function generateSlots({ startTime, endTime, frequencyMinutes }) {
   const [startHour, startMin] = startTime.split(':').map(Number)
   const [endHour, endMin] = endTime.split(':').map(Number)
   
-  // Create dates for comparison (using epoch date for time-only comparison)
+  // Create dates for comparison
   let current = new Date()
   current.setHours(startHour, startMin, 0, 0)
   
   const end = new Date()
   end.setHours(endHour, endMin, 0, 0)
   
-  // Handle case where end time is midnight (next day)
-  if (end <= current) {
+  // Handle overnight schedules: if end time is earlier than start time, it's the next day
+  const isOvernight = endHour < startHour || (endHour === startHour && endMin < startMin)
+  if (isOvernight) {
+    end.setDate(end.getDate() + 1)
+  }
+  
+  // Also handle case where end is midnight (00:00) - treat as next day
+  if (endHour === 0 && endMin === 0) {
     end.setDate(end.getDate() + 1)
   }
   
@@ -54,6 +60,30 @@ export function validateScheduleConfig({ startTime, endTime, frequencyMinutes })
   
   if (!endTime || !timeRegex.test(endTime)) {
     errors.push('endTime must be in HH:MM format')
+  }
+  
+  // Parse times to check if overnight
+  if (startTime && endTime) {
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+    
+    // Check if overnight schedule (end time is earlier than start time)
+    const isOvernight = endHour < startHour || (endHour === startHour && endMin < startMin)
+    const isMidnight = endHour === 0 && endMin === 0
+    
+    if (!isOvernight && !isMidnight) {
+      // Same-day schedule: validate duration
+      const startMinutes = startHour * 60 + startMin
+      const endMinutes = endHour * 60 + endMin
+      const duration = endMinutes - startMinutes
+      
+      if (duration <= 0) {
+        errors.push('End time must be after start time for same-day schedules')
+      }
+      if (duration > 720) {
+        errors.push('Schedule cannot exceed 12 hours')
+      }
+    }
   }
   
   // Validate frequency
