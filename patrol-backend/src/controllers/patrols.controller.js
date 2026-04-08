@@ -1,5 +1,5 @@
 // Patrol assignments controller
-import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards, getCheckpointResetDate, resetCheckpointAssignment } from '../db/models/index.js'
+import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
 import { getAllScans } from '../db/models/index.js'
 import { filterGuardsByUser, guardIdSet, filterScansByGuardIds, guardBelongsToUser } from '../utils/access.js'
@@ -22,16 +22,11 @@ export async function getPatrolAssignments(req, res) {
         const assigned = await Promise.all((guard.assignedCheckpoints || []).map(async cpId => {
           const checkpoint = checkpoints.find(cp => cp.id === cpId)
           
-          // Get the reset date for this checkpoint
-          const resetDate = await getCheckpointResetDate(guard.id, cpId)
-          const resetDateObj = resetDate ? new Date(resetDate) : null
-          
-          // Treat scans before reset as historical only; after reassign, a new scan is required.
-          const scannedAfterReset = scans.some(
+          // Find the most recent successful scan for this checkpoint
+          const lastScan = scans.find(
             s => Number(s.guardId) === Number(guard.id) && 
-                String(s.checkpointId) === String(cpId) && 
-                s.result !== 'failed' &&
-                (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
+                 String(s.checkpointId) === String(cpId) && 
+                 s.result !== 'failed'
           )
           
           return {
@@ -39,13 +34,8 @@ export async function getPatrolAssignments(req, res) {
             checkpointId: cpId,
             name: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
             location: checkpoint ? checkpoint.location : '',
-            status: scannedAfterReset ? 'completed' : 'pending',
-            completedAt: scannedAfterReset ? scans.find(s => 
-              Number(s.guardId) === Number(guard.id) && 
-              String(s.checkpointId) === String(cpId) && 
-              s.result !== 'failed' &&
-              (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
-            )?.scannedAt : null
+            status: lastScan ? 'completed' : 'pending',
+            completedAt: lastScan ? lastScan.scannedAt : null
           }
         }))
         
@@ -139,67 +129,6 @@ export async function removePatrolCheckpoint(req, res) {
     await assignCheckpointsToGuard(Number(guardId), newAssigned)
     
     res.json({ message: 'Checkpoint removed successfully' })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-}
-
-// Re-assign a completed checkpoint (reset its status)
-export async function reassignPatrolCheckpoint(req, res) {
-  try {
-    const { guardId, checkpointId } = req.body
-    
-    console.log('Reassign request:', guardId, checkpointId)
-    
-    if (!guardId || !checkpointId) {
-      return res.status(400).json({ message: 'guardId and checkpointId are required' })
-    }
-    
-    const guards = await getAllGuards()
-    const guard = guards.find(g => Number(g.id) === Number(guardId))
-    
-    if (!guard) {
-      return res.status(404).json({ message: 'Guard not found' })
-    }
-    
-    console.log('Guard found:', guard.name, 'checkpointResetDates before:', guard.checkpointResetDates)
-    
-    // Re-assign is only valid for checkpoints currently assigned to this guard
-    const currentAssigned = guard.assignedCheckpoints || []
-    
-    if (!currentAssigned.some(id => String(id) === String(checkpointId))) {
-      return res.status(400).json({ message: 'Checkpoint is not assigned to this guard' })
-    }
-
-    // Re-assign is only valid for currently completed checkpoints
-    const scans = await getAllScans()
-    const resetDate = await getCheckpointResetDate(Number(guardId), checkpointId)
-    const resetDateObj = resetDate ? new Date(resetDate) : null
-    const isCompleted = scans.some(
-      s => Number(s.guardId) === Number(guardId) &&
-        String(s.checkpointId) === String(checkpointId) &&
-        s.result !== 'failed' &&
-        (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
-    )
-
-    if (!isCompleted) {
-      return res.status(400).json({ message: 'Only completed assigned checkpoints can be reassigned' })
-    }
-    
-    // Reset the checkpoint assignment timestamp (without deleting scan history)
-    const result = await resetCheckpointAssignment(Number(guardId), checkpointId)
-    console.log('Reset result:', result)
-    
-    // Verify the reset happened
-    const updatedGuards = await getAllGuards()
-    const updatedGuard = updatedGuards.find(g => Number(g.id) === Number(guardId))
-    console.log('checkpointResetDates after:', updatedGuard?.checkpointResetDates)
-    
-    res.json({ 
-      message: 'Checkpoint re-assigned successfully. Guard needs to scan it again.',
-      guardId: Number(guardId),
-      checkpointId: checkpointId
-    })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

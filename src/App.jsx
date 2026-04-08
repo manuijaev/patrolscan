@@ -9,6 +9,7 @@ import IncidentReports from './pages/IncidentReports'
 import ScanQR from './pages/ScanQR'
 import UpcomingPatrols from './pages/UpcomingPatrols'
 import SupervisorDashboard from './pages/SupervisorDashboard'
+import Settings from './pages/Settings'
 
 import AdminLogin from './auth/AdminLogin'
 import GuardLogin from './auth/GuardLogin'
@@ -67,6 +68,7 @@ export default function App() {
         <Route path="patrols" element={<Patrols />} />
         <Route path="upcoming-patrols" element={<UpcomingPatrols />} />
         <Route path="reports" element={<IncidentReports />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       {/* Guard App */}

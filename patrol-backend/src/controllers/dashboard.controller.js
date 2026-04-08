@@ -368,8 +368,6 @@ export async function getNotifications(req, res) {
     const now = new Date()
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000)
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    const reassignStaleHours = 2
-    const reassignStaleSince = new Date(now.getTime() - reassignStaleHours * 60 * 60 * 1000)
 
     const notifications = []
 
@@ -444,48 +442,6 @@ export async function getNotifications(req, res) {
         },
       })
     })
-
-    // 2) Reassign needed (completed checkpoint stale for too long)
-    for (const guard of guards) {
-      for (const checkpointId of (guard.assignedCheckpoints || [])) {
-        const resetDate = await getCheckpointResetDate(guard.id, checkpointId)
-        const resetDateObj = resetDate ? new Date(resetDate) : null
-
-        const assignmentSuccessfulScans = scans
-          .filter(s =>
-            Number(s.guardId) === Number(guard.id) &&
-            String(s.checkpointId) === String(checkpointId) &&
-            s.result !== 'failed' &&
-            (!resetDateObj || new Date(s.scannedAt) >= resetDateObj)
-          )
-          .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))
-
-        const latestSuccess = assignmentSuccessfulScans[0]
-        if (!latestSuccess) continue
-        const latestSuccessAt = new Date(latestSuccess.scannedAt)
-        if (latestSuccessAt > reassignStaleSince) continue
-
-        const checkpoint = checkpointById.get(String(checkpointId))
-        const checkpointName = checkpoint?.name || 'Unknown Checkpoint'
-        notifications.push({
-          id: `reassign-needed-${guard.id}-${String(checkpointId)}`,
-          type: 'reassign_needed',
-          severity: 'warning',
-          title: 'Reassign Needed',
-          detail: `${checkpointName} (assigned to ${guard.name}) was last completed ${Math.floor((now - latestSuccessAt) / (60 * 60 * 1000))}h ago and likely needs re-assignment.`,
-          time: latestSuccess.scannedAt,
-          unread: true,
-          action: {
-            path: '/upcoming-patrols',
-            label: 'Open Upcoming Patrols',
-            params: {
-              guardId: String(guard.id),
-              checkpointId: String(checkpointId),
-            },
-          },
-        })
-      }
-    }
 
     // 3) Unauthorized/Unexpected scan attempts
     const unauthorizedAttempts = scans

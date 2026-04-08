@@ -4,6 +4,7 @@ import Guard from './Guard.js'
 import Checkpoint from './Checkpoint.js'
 import Scan from './Scan.js'
 import { defineIncidentModel } from './Incident.js'
+import ScheduleConfig from './ScheduleConfig.js'
 
 let Incident = null
 
@@ -16,9 +17,10 @@ export async function initIncidentModel() {
   return Incident
 }
 
-// Export models
-export { Admin, Guard, Checkpoint, Scan }
 export function getIncident() { return Incident }
+
+// Export models
+export { Admin, Guard, Checkpoint, Scan, ScheduleConfig }
 
 // ==================== GUARD OPERATIONS ====================
 

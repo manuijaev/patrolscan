@@ -26,6 +26,13 @@ const Admin = sequelize.define('Admin', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  patrolMode: {
+    type: DataTypes.STRING,
+    defaultValue: 'FREE',
+    validate: {
+      isIn: [['FREE', 'SCHEDULED']]
+    }
   }
 }, {
   tableName: 'admins',

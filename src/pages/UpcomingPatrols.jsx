@@ -144,46 +144,6 @@ export default function UpcomingPatrols() {
     }
   }
 
-  // Handle re-assign completed checkpoint
-  async function handleReassign(guardId, checkpointId) {
-    const previousPatrols = patrols.map(patrol => ({
-      ...patrol,
-      checkpoints: [...(patrol.checkpoints || [])]
-    }))
-
-    setPatrols(prev => prev.map(patrol => {
-      if (Number(patrol.guardId) !== Number(guardId)) return patrol
-
-      const updatedCheckpoints = (patrol.checkpoints || []).map(cp => {
-        if (String(cp.checkpointId) !== String(checkpointId)) return cp
-        return { ...cp, status: 'pending', completedAt: null }
-      })
-
-      return {
-        ...patrol,
-        checkpoints: updatedCheckpoints,
-        completedToday: updatedCheckpoints.filter(cp => cp.status === 'completed').length
-      }
-    }))
-
-    try {
-      const token = getToken()
-      await api.post('/patrol-assignments/reassign', {
-        guardId,
-        checkpointId
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
-      toast.success('Checkpoint re-assigned. Guard needs to scan it again.')
-      await loadData()
-    } catch (err) {
-      setPatrols(previousPatrols)
-      console.error('Failed to reassign', err)
-      toast.error(err.response?.data?.message || 'Failed to re-assign checkpoint')
-    }
-  }
-
   // Handle change guard for checkpoint
   async function handleChangeGuard() {
     if (!selectedPatrol || !newGuardId) {
@@ -331,15 +291,6 @@ export default function UpcomingPatrols() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {cp.status === 'completed' && (
-                          <button
-                            onClick={() => handleReassign(patrol.guardId, cp.checkpointId)}
-                            className="p-2 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600"
-                            title="Re-assign"
-                          >
-                            <IconRefresh size={16} />
-                          </button>
-                        )}
                         <button
                           onClick={() => openChangeGuardModal(patrol, cp)}
                           className="p-2 rounded-lg hover:bg-[color:var(--bg-muted)] text-[color:var(--text-muted)]"
