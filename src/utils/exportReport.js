@@ -193,24 +193,57 @@ export function exportPatrolReport(scans, meta = {}) {
   doc.text('GUARD PERFORMANCE', 14, y)
   y += 5
 
+  // Calculate first and last scan times per guard
+  const guardTimes = {}
+  scans.forEach(s => {
+    const g = s.guardName || 'Unknown'
+    const time = s.scannedAt
+    if (!guardTimes[g]) {
+      guardTimes[g] = { first: time, last: time }
+    } else {
+      if (time < guardTimes[g].first) guardTimes[g].first = time
+      if (time > guardTimes[g].last) guardTimes[g].last = time
+    }
+  })
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '-'
+    try {
+      const date = new Date(isoString)
+      return date.toLocaleString('en-KE', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return '-'
+    }
+  }
+
   const guardRows = Object.entries(guardMap)
     .map(([name, s]) => {
       const t = s.pass + s.fail
       const pct = Math.round((s.pass / t) * 100)
+      const times = guardTimes[name]
+      const firstScan = times ? formatDateTime(times.first) : '-'
+      const lastScan = times ? formatDateTime(times.last) : '-'
       return [
         name,
         String(t),
         String(s.pass),
         String(s.fail),
         `${pct}%`,
-        pct >= 85 ? 'Good' : pct >= 60 ? 'Average' : 'Poor'
+        pct >= 85 ? 'Good' : pct >= 60 ? 'Average' : 'Poor',
+        firstScan,
+        lastScan
       ]
     })
     .sort((a, b) => parseFloat(b[4]) - parseFloat(a[4]))
 
   autoTable(doc, {
     startY: y,
-    head: [['Guard', 'Total Scans', 'Passed', 'Failed', 'Rate', 'Status']],
+    head: [['Guard', 'Total Scans', 'Passed', 'Failed', 'Rate', 'Status', 'First Scan', 'Last Scan']],
     body: guardRows,
     margin: { left: 14, right: 14 },
     styles: { fontSize: 9, cellPadding: 4, font: 'helvetica' },
