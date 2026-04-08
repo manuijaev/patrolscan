@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   IconAlertCircle,
@@ -13,6 +13,7 @@ import {
 import { toast } from 'react-hot-toast'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
+import { createPortal } from 'react-dom'
 
 export default function Incidents({ showHeading = true }) {
   const location = useLocation()
@@ -22,7 +23,9 @@ export default function Incidents({ showHeading = true }) {
   const [deletingId, setDeletingId] = useState('')
   const [previewImage, setPreviewImage] = useState(null)
   const [previewTitle, setPreviewTitle] = useState('')
+  const [previewMeta, setPreviewMeta] = useState(null)
   const [highlightedIncidentId, setHighlightedIncidentId] = useState('')
+  const portalTarget = typeof document !== 'undefined' ? document.body : null
   const [downloadingImageKey, setDownloadingImageKey] = useState('')
 
   useEffect(() => {
@@ -55,18 +58,30 @@ export default function Incidents({ showHeading = true }) {
     }
   }, [])
 
+  const closePreview = useCallback(() => {
+    setPreviewImage(null)
+    setPreviewTitle('')
+    setPreviewMeta(null)
+  }, [])
+
+  function openPreview(src, incident, idx) {
+    setPreviewImage(src)
+    setPreviewTitle(`${incident.checkpointName || 'Incident'} · Photo ${idx + 1}`)
+    setPreviewMeta({ incidentId: incident.id, idx })
+  }
+
   useEffect(() => {
     if (!previewImage) return undefined
 
     const onKeyDown = e => {
       if (e.key === 'Escape') {
-        setPreviewImage(null)
+        closePreview()
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [previewImage])
+  }, [previewImage, closePreview])
 
   useEffect(() => {
     if (!incidents.length) return
@@ -100,6 +115,59 @@ export default function Incidents({ showHeading = true }) {
     [incidents]
   )
 
+  const previewDownloadIncidentId = previewMeta?.incidentId
+  const previewDownloadIndex = Number.isFinite(previewMeta?.idx) ? previewMeta.idx : 0
+  const previewPortal = previewImage && portalTarget
+    ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6"
+          onClick={closePreview}
+        >
+          <div
+            className="relative z-10 w-full max-w-[min(95vw,980px)] max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 rounded-t-2xl border border-[color:var(--border)] bg-[color:var(--panel)]/95 px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[color:var(--text-muted)]">
+                {previewTitle || 'Incident photo'}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleDownloadImage(previewImage, previewDownloadIncidentId, previewDownloadIndex)
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-black/20 bg-black/10 px-3 py-1 text-[12px] font-semibold uppercase tracking-wide text-[color:var(--text)] transition hover:bg-black/15"
+                >
+                  <IconDownload size={14} />
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--panel)] transition hover:bg-[color:var(--panel-strong)]"
+                  aria-label="Close preview"
+                >
+                  <IconX size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="relative max-h-[82vh] overflow-hidden rounded-b-2xl border border-[color:var(--border)] bg-black px-4 pb-4 pt-2 shadow-[0_12px_45px_rgba(0,0,0,0.5)]">
+              <img
+                src={previewImage}
+                alt={previewTitle || 'Incident preview'}
+                className="max-h-[78vh] w-full rounded-xl object-contain"
+              />
+            </div>
+          </div>
+        </div>,
+        portalTarget
+      )
+    : null
+
   function resolveImageFilename(src, fallbackName) {
     try {
       const parsed = new URL(src)
@@ -114,8 +182,10 @@ export default function Incidents({ showHeading = true }) {
   }
 
   async function handleDownloadImage(src, incidentId, idx) {
-    const downloadKey = `${incidentId}-${idx}`
-    const fallbackName = `incident-${incidentId}-photo-${idx + 1}.jpg`
+    const resolvedId = incidentId ?? 'preview'
+    const safeIndex = Number.isFinite(idx) ? idx : 0
+    const downloadKey = `${resolvedId}-${safeIndex}`
+    const fallbackName = `incident-${resolvedId}-photo-${safeIndex + 1}.jpg`
     setDownloadingImageKey(downloadKey)
     try {
       const response = await fetch(src)
@@ -173,31 +243,31 @@ export default function Incidents({ showHeading = true }) {
 
   return (
     <div className="space-y-6">
-      {showHeading && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Incident Reports</h2>
-            <p className="text-sm text-[color:var(--text-muted)]">
-              View incidents reported by guards, including photos and notes.
-            </p>
+        {showHeading && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Incident Reports</h2>
+              <p className="text-sm text-[color:var(--text-muted)]">
+                View incidents reported by guards, including photos and notes.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 text-xs">
+              <span className="font-semibold">{incidents.length}</span>
+              <span className="text-[color:var(--text-muted)]">Reports</span>
+              <span className="h-4 w-px bg-[color:var(--border)]" />
+              <span className="font-semibold">{totalPhotos}</span>
+              <span className="text-[color:var(--text-muted)]">Photos</span>
+            </div>
           </div>
-          <div className="inline-flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 text-xs">
-            <span className="font-semibold">{incidents.length}</span>
-            <span className="text-[color:var(--text-muted)]">Reports</span>
-            <span className="h-4 w-px bg-[color:var(--border)]" />
-            <span className="font-semibold">{totalPhotos}</span>
-            <span className="text-[color:var(--text-muted)]">Photos</span>
+        )}
+
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
-        </div>
-      )}
+        )}
 
-      {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-6 shadow-[var(--shadow)]">
+        <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-6 shadow-[var(--shadow)]">
         {loading ? (
           <p className="text-sm text-[color:var(--text-muted)]">Loading incidents…</p>
         ) : incidents.length === 0 ? (
@@ -261,32 +331,38 @@ export default function Incidents({ showHeading = true }) {
                     <p className="text-xs font-medium text-[color:var(--text-muted)]">
                       Photos ({incident.images.length})
                     </p>
-                    <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+                    <div
+                      className="grid gap-3"
+                      style={{
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gridAutoRows: 'minmax(150px, 1fr)',
+                      }}
+                    >
                       {incident.images.map((src, idx) => {
-                        const imageKey = `${incident.id}-${idx}`
+                        const imageKey = `${incident.id ?? 'incident'}-${idx}`
                         const isDownloading = downloadingImageKey === imageKey
                         return (
                           <div
                             key={imageKey}
-                            className="relative rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] shadow-[var(--shadow)] transition-transform duration-200 hover:-translate-y-0.5"
+                            className="relative overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)] shadow-[var(--shadow)] transition hover:border-[color:var(--accent)]"
                           >
                             <button
                               type="button"
-                              onClick={() => {
-                                setPreviewImage(src)
-                                setPreviewTitle(`${incident.checkpointName || 'Incident'} · Photo ${idx + 1}`)
-                              }}
-                              className="group relative block h-full w-full overflow-hidden rounded-xl"
+                              onClick={() => openPreview(src, incident, idx)}
+                              className="group relative block w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                              aria-label={`Preview incident photo ${idx + 1}`}
                             >
-                              <img
-                                src={src}
-                                alt={`Incident ${incident.id} photo ${idx + 1}`}
-                                className="h-32 w-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <div className="absolute inset-0 bg-black/15 opacity-0 transition-opacity group-hover:opacity-100" />
-                              <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                                <IconPhoto size={11} />
-                                Preview
+                              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
+                                <img
+                                  src={src}
+                                  alt={`Incident ${incident.id} photo ${idx + 1}`}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                                <div className="pointer-events-none absolute left-2 bottom-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-white">
+                                  <IconPhoto size={10} />
+                                  Photo {idx + 1}
+                                </div>
                               </div>
                             </button>
                             <button
@@ -296,10 +372,11 @@ export default function Incidents({ showHeading = true }) {
                                 event.stopPropagation()
                                 handleDownloadImage(src, incident.id, idx)
                               }}
-                              className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:bg-black/80 disabled:cursor-wait disabled:opacity-70"
+                              className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full border border-white/70 bg-black/60 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-white transition hover:bg-black/80 disabled:cursor-wait disabled:opacity-70"
+                              aria-label={`Download incident photo ${idx + 1}`}
                             >
                               <IconDownload size={14} className={isDownloading ? 'animate-spin' : ''} />
-                              <span>Download</span>
+                              <span className="hidden sm:inline">Download</span>
                             </button>
                           </div>
                         )
@@ -312,33 +389,7 @@ export default function Incidents({ showHeading = true }) {
           </div>
         )}
       </div>
-
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-[fadeIn_.2s_ease-out]"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="relative w-full max-w-5xl rounded-2xl border border-white/20 bg-black/70 p-3 sm:p-4 shadow-2xl animate-[zoomIn_.2s_ease-out]"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setPreviewImage(null)}
-              className="absolute right-3 top-3 rounded-full border border-white/30 bg-black/40 p-1.5 text-white transition hover:bg-black/70"
-              aria-label="Close preview"
-            >
-              <IconX size={16} />
-            </button>
-            <p className="mb-3 pr-10 text-xs sm:text-sm text-white/90">{previewTitle}</p>
-            <img
-              src={previewImage}
-              alt="Incident preview"
-              className="max-h-[76vh] w-full rounded-xl object-contain bg-black"
-            />
-          </div>
-        </div>
-      )}
+      {previewPortal}
     </div>
   )
 }

@@ -29,8 +29,10 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
   const location = useLocation()
   const [incidentCount, setIncidentCount] = useState(0)
   const user = getUser()
-  const navMenu = user?.role === 'supervisor'
-    ? [{ name: 'Supervisor Dashboard', path: '/supervisor-dashboard', icon: IconShield }, ...baseMenu]
+  const isSupervisor = user?.role === 'supervisor'
+  const filteredBaseMenu = isSupervisor ? baseMenu.filter(item => item.path !== '/dashboard') : baseMenu
+  const navMenu = isSupervisor
+    ? [{ name: 'Supervisor Dashboard', path: '/supervisor-dashboard', icon: IconShield }, ...filteredBaseMenu]
     : baseMenu
 
   function getSeenAt() {
