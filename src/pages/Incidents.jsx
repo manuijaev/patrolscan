@@ -8,12 +8,13 @@ import {
   IconTrash,
   IconX,
   IconPhoto,
+  IconDownload,
 } from '@tabler/icons-react'
 import { toast } from 'react-hot-toast'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
 
-export default function Incidents() {
+export default function Incidents({ showHeading = true }) {
   const location = useLocation()
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,6 +23,7 @@ export default function Incidents() {
   const [previewImage, setPreviewImage] = useState(null)
   const [previewTitle, setPreviewTitle] = useState('')
   const [highlightedIncidentId, setHighlightedIncidentId] = useState('')
+  const [downloadingImageKey, setDownloadingImageKey] = useState('')
 
   useEffect(() => {
     let active = true
@@ -98,6 +100,47 @@ export default function Incidents() {
     [incidents]
   )
 
+  function resolveImageFilename(src, fallbackName) {
+    try {
+      const parsed = new URL(src)
+      const candidate = parsed.pathname.split('/').filter(Boolean).pop()
+      if (candidate) {
+        return decodeURIComponent(candidate)
+      }
+    } catch {
+      // ignore and fall back
+    }
+    return fallbackName
+  }
+
+  async function handleDownloadImage(src, incidentId, idx) {
+    const downloadKey = `${incidentId}-${idx}`
+    const fallbackName = `incident-${incidentId}-photo-${idx + 1}.jpg`
+    setDownloadingImageKey(downloadKey)
+    try {
+      const response = await fetch(src)
+      if (!response.ok) {
+        throw new Error('Unexpected response when downloading image')
+      }
+      const blob = await response.blob()
+      const fileName = resolveImageFilename(src, fallbackName)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', fileName)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('Image download started')
+    } catch (err) {
+      console.error('Failed to download incident image', err)
+      toast.error('Failed to download image. Please try again.')
+    } finally {
+      setDownloadingImageKey(prev => (prev === downloadKey ? '' : prev))
+    }
+  }
+
   function formatDateTime(iso) {
     if (!iso) return '—'
     const d = new Date(iso)
@@ -130,21 +173,23 @@ export default function Incidents() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Incident Reports</h2>
-          <p className="text-sm text-[color:var(--text-muted)]">
-            View incidents reported by guards, including photos and notes.
-          </p>
+      {showHeading && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Incident Reports</h2>
+            <p className="text-sm text-[color:var(--text-muted)]">
+              View incidents reported by guards, including photos and notes.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 text-xs">
+            <span className="font-semibold">{incidents.length}</span>
+            <span className="text-[color:var(--text-muted)]">Reports</span>
+            <span className="h-4 w-px bg-[color:var(--border)]" />
+            <span className="font-semibold">{totalPhotos}</span>
+            <span className="text-[color:var(--text-muted)]">Photos</span>
+          </div>
         </div>
-        <div className="inline-flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 text-xs">
-          <span className="font-semibold">{incidents.length}</span>
-          <span className="text-[color:var(--text-muted)]">Reports</span>
-          <span className="h-4 w-px bg-[color:var(--border)]" />
-          <span className="font-semibold">{totalPhotos}</span>
-          <span className="text-[color:var(--text-muted)]">Photos</span>
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -216,29 +261,49 @@ export default function Incidents() {
                     <p className="text-xs font-medium text-[color:var(--text-muted)]">
                       Photos ({incident.images.length})
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {incident.images.map((src, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          className="group relative rounded-xl overflow-hidden border border-[color:var(--border)] bg-[color:var(--panel)] transition-transform duration-200 hover:-translate-y-0.5"
-                          onClick={() => {
-                            setPreviewImage(src)
-                            setPreviewTitle(`${incident.checkpointName || 'Incident'} · Photo ${idx + 1}`)
-                          }}
-                        >
-                          <img
-                            src={src}
-                            alt={`Incident ${incident.id} photo ${idx + 1}`}
-                            className="h-32 w-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/15 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="absolute bottom-1 right-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1">
-                            <IconPhoto size={11} />
-                            Preview
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+                      {incident.images.map((src, idx) => {
+                        const imageKey = `${incident.id}-${idx}`
+                        const isDownloading = downloadingImageKey === imageKey
+                        return (
+                          <div
+                            key={imageKey}
+                            className="relative rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] shadow-[var(--shadow)] transition-transform duration-200 hover:-translate-y-0.5"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewImage(src)
+                                setPreviewTitle(`${incident.checkpointName || 'Incident'} · Photo ${idx + 1}`)
+                              }}
+                              className="group relative block h-full w-full overflow-hidden rounded-xl"
+                            >
+                              <img
+                                src={src}
+                                alt={`Incident ${incident.id} photo ${idx + 1}`}
+                                className="h-32 w-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/15 opacity-0 transition-opacity group-hover:opacity-100" />
+                              <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                                <IconPhoto size={11} />
+                                Preview
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDownloading}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleDownloadImage(src, incident.id, idx)
+                              }}
+                              className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white transition hover:bg-black/80 disabled:cursor-wait disabled:opacity-70"
+                            >
+                              <IconDownload size={14} className={isDownloading ? 'animate-spin' : ''} />
+                              <span>Download</span>
+                            </button>
                           </div>
-                        </button>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}

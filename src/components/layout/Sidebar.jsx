@@ -21,7 +21,7 @@ const baseMenu = [
   { name: 'Guards', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
-  { name: 'Incidents', path: '/reports', icon: IconAlertCircle },
+  { name: 'Incident & Reports', path: '/reports', icon: IconAlertCircle },
 ]
 const INCIDENTS_SEEN_AT_KEY = 'admin_incidents_seen_at_v1'
 

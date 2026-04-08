@@ -36,7 +36,7 @@ function getDeletionRangeStart(range) {
   }
 }
 
-export default function Reports() {
+export default function Reports({ showHeading = true }) {
   const [scans, setScans] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState('today')
@@ -360,64 +360,66 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Reports</h2>
-          <p className="text-sm text-[color:var(--text-muted)]">
-            View patrol scan history and export reports.
-          </p>
-        </div>
-
-        {selectionMode ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={deleteRange}
-              onChange={(e) => setDeleteRange(e.target.value)}
-              className="rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2 text-sm"
-            >
-              <option value="7d">Last 7 Days</option>
-              <option value="1m">Last Month</option>
-              <option value="6m">Last 6 Months</option>
-              <option value="1y">Last Year</option>
-            </select>
-            <button
-              onClick={exitSelectionMode}
-              className="px-4 py-2 rounded-xl border border-[color:var(--border)] text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={deleteSelectedScans}
-              disabled={!selectedScanIds.length || deleting}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
-            >
-              <IconTrash size={16} />
-              {deleting ? 'Deleting...' : `Delete (${selectedScanIds.length})`}
-            </button>
+      {showHeading && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Reports</h2>
+            <p className="text-sm text-[color:var(--text-muted)]">
+              View patrol scan history and export reports.
+            </p>
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSelectionMode(true)}
-              disabled={!filteredScans.length}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[color:var(--border)] hover:bg-[color:var(--bg-muted)] transition text-sm disabled:opacity-50"
-            >
-              <IconCheck size={16} />
-              Select
-            </button>
-            <button
-              onClick={exportCSV}
-              disabled={!filteredScans.length}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
+
+          {selectionMode ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={deleteRange}
+                onChange={(e) => setDeleteRange(e.target.value)}
+                className="rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2 text-sm"
+              >
+                <option value="7d">Last 7 Days</option>
+                <option value="1m">Last Month</option>
+                <option value="6m">Last 6 Months</option>
+                <option value="1y">Last Year</option>
+              </select>
+              <button
+                onClick={exitSelectionMode}
+                className="px-4 py-2 rounded-xl border border-[color:var(--border)] text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteSelectedScans}
+                disabled={!selectedScanIds.length || deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
+              >
+                <IconTrash size={16} />
+                {deleting ? 'Deleting...' : `Delete (${selectedScanIds.length})`}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectionMode(true)}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[color:var(--border)] hover:bg-[color:var(--bg-muted)] transition text-sm disabled:opacity-50"
+              >
+                <IconCheck size={16} />
+                Select
+              </button>
+              <button
+                onClick={exportCSV}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
                 hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50
                 disabled:cursor-not-allowed"
-            >
-              <IconDownload size={18} />
-              Export CSV
-            </button>
-          </div>
-        )}
-      </div>
+              >
+                <IconDownload size={18} />
+                Export CSV
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">
@@ -425,20 +427,22 @@ export default function Reports() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
-          <p className="text-sm text-[color:var(--text-muted)]">Total Scans</p>
-          <p className="text-2xl font-semibold">{totalScans}</p>
+      {showHeading && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
+            <p className="text-sm text-[color:var(--text-muted)]">Total Scans</p>
+            <p className="text-2xl font-semibold">{totalScans}</p>
+          </div>
+          <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
+            <p className="text-sm text-[color:var(--text-muted)]">Active Guards</p>
+            <p className="text-2xl font-semibold">{uniqueGuards}</p>
+          </div>
+          <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
+            <p className="text-sm text-[color:var(--text-muted)]">Checkpoints Visited</p>
+            <p className="text-2xl font-semibold">{uniqueCheckpoints}</p>
+          </div>
         </div>
-        <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
-          <p className="text-sm text-[color:var(--text-muted)]">Active Guards</p>
-          <p className="text-2xl font-semibold">{uniqueGuards}</p>
-        </div>
-        <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
-          <p className="text-sm text-[color:var(--text-muted)]">Checkpoints Visited</p>
-          <p className="text-2xl font-semibold">{uniqueCheckpoints}</p>
-        </div>
-      </div>
+      )}
 
       <div className="bg-[color:var(--panel)] border border-[color:var(--border)] rounded-2xl p-4 shadow-[var(--shadow)]">
         <div className="flex flex-col sm:flex-row gap-4">
