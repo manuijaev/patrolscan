@@ -79,6 +79,7 @@ export default function Settings() {
         { headers: { Authorization: `Bearer ${token}` }
       })
       setPreviewSlots(res.data)
+      return res.data
     } catch (err) {
       const errors = err.response?.data?.errors || err.response?.data?.error
       if (Array.isArray(errors)) {
@@ -86,15 +87,34 @@ export default function Settings() {
       } else {
         toast.error(errors || 'Failed to preview schedule')
       }
+      return null
     } finally {
       setPreviewing(false)
     }
   }
 
+  async function handleSaveConfig() {
+    try {
+      const token = getToken()
+      await api.post('/settings/schedule-config',
+        { startTime, endTime, frequencyMinutes },
+        { headers: { Authorization: `Bearer ${token}` }
+      })
+      toast.success('Schedule configuration saved')
+      // Refresh preview with new values
+      await handlePreview()
+    } catch (err) {
+      toast.error('Failed to save schedule config')
+    }
+  }
+
   async function handleActivateScheduled() {
     // First preview to validate
-    await handlePreview()
-    if (!previewSlots) return
+    const preview = await handlePreview()
+    if (!preview || preview.totalSlots === 0) {
+      toast.error('Invalid schedule configuration')
+      return
+    }
     
     setSaving(true)
     try {
@@ -303,21 +323,7 @@ export default function Settings() {
           {/* Save Config Without Activating */}
           <div className="mt-3">
             <button
-              onClick={async () => {
-                setSaving(true)
-                try {
-                  const token = getToken()
-                  await api.post('/settings/schedule-config',
-                    { startTime, endTime, frequencyMinutes },
-                    { headers: { Authorization: `Bearer ${token}` }
-                  })
-                  toast.success('Schedule configuration saved')
-                } catch (err) {
-                  toast.error('Failed to save schedule config')
-                } finally {
-                  setSaving(false)
-                }
-              }}
+              onClick={handleSaveConfig}
               disabled={saving}
               className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] underline"
             >
@@ -445,21 +451,7 @@ export default function Settings() {
           {/* Save Config Without Switching Mode */}
           <div className="mt-3">
             <button
-              onClick={async () => {
-                setSaving(true)
-                try {
-                  const token = getToken()
-                  await api.post('/settings/schedule-config',
-                    { startTime, endTime, frequencyMinutes },
-                    { headers: { Authorization: `Bearer ${token}` }
-                  })
-                  toast.success('Schedule configuration saved')
-                } catch (err) {
-                  toast.error('Failed to save schedule config')
-                } finally {
-                  setSaving(false)
-                }
-              }}
+              onClick={handleSaveConfig}
               disabled={saving}
               className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] underline"
             >
