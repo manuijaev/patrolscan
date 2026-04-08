@@ -1,4 +1,4 @@
-import * as incidents from '../data/incidents.js'
+import { Sequelize } from 'sequelize'
 import * as db from '../db/models/index.js'
 import { filterGuardsByUser, guardIdSet, filterIncidentsByGuardIds } from '../utils/access.js'
 
@@ -39,15 +39,18 @@ export const create = async (req, res) => {
         ? images.slice(0, 10).filter(img => typeof img === 'string' && img.length <= 2_000_000)
         : []
 
-    const newIncident = await incidents.create({
+    // Initialize the incident model and create
+    const Incident = await db.initIncidentModel()
+    const newIncident = await Incident.create({
       guardId,
       checkpointId,
       comment: comment.trim(),
-      images: safeImages,
+      images: safeImages
     })
 
     res.status(201).json(newIncident)
   } catch (error) {
+    console.error('Error creating incident:', error)
     res.status(500).json({ error: 'Failed to create incident' })
   }
 }
@@ -56,23 +59,39 @@ export const create = async (req, res) => {
 export const getAll = async (req, res) => {
   try {
     const { guards, guardIds } = await getAccessibleGuards(req)
-    const allIncidents = filterIncidentsByGuardIds(await incidents.getAll(), guardIds)
+    
+    // Initialize and fetch from database
+    const Incident = await db.initIncidentModel()
+    const dbIncidents = await Incident.findAll({
+      where: {
+        guardId: {
+          [Sequelize.Op.in]: Array.from(guardIds)
+        }
+      },
+      order: [['createdAt', 'DESC']]
+    })
+
     const allCheckpoints = await db.getAllCheckpoints()
 
-    const enriched = allIncidents
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    const enriched = dbIncidents
       .map(incident => {
-        const guard = guards.find(g => String(g.id) === String(incident.guardId))
+        const guard = guards.find(g => g.id === incident.guardId)
         const checkpoint = allCheckpoints.find(cp => cp.id === incident.checkpointId)
         return {
-          ...incident,
+          id: incident.id,
+          guardId: incident.guardId,
+          checkpointId: incident.checkpointId,
+          comment: incident.comment,
+          images: incident.images,
+          createdAt: incident.createdAt,
           guardName: guard ? guard.name : 'Unknown Guard',
-          checkpointName: checkpoint ? checkpoint.name : 'Unknown Checkpoint',
+          checkpointName: checkpoint ? checkpoint.name : 'Unknown Checkpoint'
         }
       })
 
     res.json(enriched)
   } catch (error) {
+    console.error('Error fetching incidents:', error)
     res.status(500).json({ error: 'Failed to fetch incidents' })
   }
 }
@@ -80,12 +99,17 @@ export const getAll = async (req, res) => {
 // Admin deletes incident
 export const remove = async (req, res) => {
   try {
-    const deleted = await incidents.remove(req.params.id)
-    if (!deleted) {
+    const Incident = await db.initIncidentModel()
+    const incident = await Incident.findByPk(req.params.id)
+    
+    if (!incident) {
       return res.status(404).json({ error: 'Incident not found' })
     }
+    
+    await incident.destroy()
     res.json({ message: 'Incident deleted successfully' })
   } catch (error) {
+    console.error('Error deleting incident:', error)
     res.status(500).json({ error: 'Failed to delete incident' })
   }
 }

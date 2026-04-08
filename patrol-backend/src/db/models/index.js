@@ -3,9 +3,22 @@ import Admin from './Admin.js'
 import Guard from './Guard.js'
 import Checkpoint from './Checkpoint.js'
 import Scan from './Scan.js'
+import { defineIncidentModel } from './Incident.js'
+
+let Incident = null
+
+export async function initIncidentModel() {
+  if (!Incident) {
+    Incident = await defineIncidentModel()
+    // Sync table if it doesn't exist
+    await Incident.sync()
+  }
+  return Incident
+}
 
 // Export models
 export { Admin, Guard, Checkpoint, Scan }
+export function getIncident() { return Incident }
 
 // ==================== GUARD OPERATIONS ====================
 
