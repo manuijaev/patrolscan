@@ -332,10 +332,10 @@ export default function Incidents({ showHeading = true }) {
                       Photos ({incident.images.length})
                     </p>
                     <div
-                      className="grid gap-2"
+                      className="grid gap-1"
                       style={{
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                        gridAutoRows: 'minmax(80px, 1fr)',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))',
+                        gridAutoRows: 'minmax(50px, 1fr)',
                       }}
                     >
                       {incident.images.map((src, idx) => {
@@ -352,7 +352,7 @@ export default function Incidents({ showHeading = true }) {
                               className="group relative block w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                               aria-label={`Preview incident photo ${idx + 1}`}
                             >
-                              <div className="relative aspect-square w-full overflow-hidden rounded-2xl">
+                              <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                                 <img
                                   src={src}
                                   alt={`Incident ${incident.id} photo ${idx + 1}`}
