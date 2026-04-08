@@ -300,6 +300,31 @@ export default function Settings() {
             </button>
           </div>
 
+          {/* Save Config Without Activating */}
+          <div className="mt-3">
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const token = getToken()
+                  await api.post('/settings/schedule-config',
+                    { startTime, endTime, frequencyMinutes },
+                    { headers: { Authorization: `Bearer ${token}` }
+                  })
+                  toast.success('Schedule configuration saved')
+                } catch (err) {
+                  toast.error('Failed to save schedule config')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={saving}
+              className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] underline"
+            >
+              Save schedule without activating
+            </button>
+          </div>
+
           {/* Preview Results */}
           {previewSlots && (
             <div className="mt-4 p-4 rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)]">
@@ -414,6 +439,31 @@ export default function Settings() {
             >
               <IconX size={16} />
               Switch to Free Mode
+            </button>
+          </div>
+
+          {/* Save Config Without Switching Mode */}
+          <div className="mt-3">
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const token = getToken()
+                  await api.post('/settings/schedule-config',
+                    { startTime, endTime, frequencyMinutes },
+                    { headers: { Authorization: `Bearer ${token}` }
+                  })
+                  toast.success('Schedule configuration saved')
+                } catch (err) {
+                  toast.error('Failed to save schedule config')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={saving}
+              className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] underline"
+            >
+              Save schedule changes
             </button>
           </div>
 
