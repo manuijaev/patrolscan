@@ -12,6 +12,7 @@ import {
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
+import { exportPatrolReport } from '../utils/exportReport'
 
 function getDeletionRangeStart(range) {
   const now = new Date()
@@ -354,6 +355,38 @@ export default function Reports({ showHeading = true }) {
     URL.revokeObjectURL(url)
   }
 
+  function getDateRangeLabel() {
+    const now = new Date()
+    switch (dateRange) {
+      case 'today':
+        return 'Today'
+      case 'week':
+        return 'Last 7 Days'
+      case 'month':
+        return 'Last 30 Days'
+      case 'all':
+        return 'All Time'
+      case 'custom':
+        if (customStart && customEnd) {
+          return `${customStart} - ${customEnd}`
+        }
+        return 'Custom Range'
+      default:
+        return 'All Dates'
+    }
+  }
+
+  function exportPDF() {
+    if (filteredScans.length === 0) return
+
+    exportPatrolReport(filteredScans, {
+      title: 'Patrol Activity Report',
+      dateRange: getDateRangeLabel(),
+      generatedBy: 'PatrolScan Admin',
+      filters: searchTerm ? [`Search: ${searchTerm}`] : []
+    })
+  }
+
   const totalScans = scans.length
   const uniqueGuards = new Set(scans.filter(s => s.guardName).map(s => s.guardName)).size
   const uniqueCheckpoints = new Set(scans.filter(s => s.checkpointName).map(s => s.checkpointName)).size
@@ -405,6 +438,16 @@ export default function Reports({ showHeading = true }) {
               >
                 <IconCheck size={16} />
                 Select
+              </button>
+              <button
+                onClick={exportPDF}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white
+                hover:bg-red-700 transition font-medium disabled:opacity-50
+                disabled:cursor-not-allowed"
+              >
+                <IconDownload size={18} />
+                Export PDF
               </button>
               <button
                 onClick={exportCSV}
