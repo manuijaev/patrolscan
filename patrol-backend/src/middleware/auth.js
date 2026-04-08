@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { matchesAnyRole } from '../utils/access.js'
 
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || ''
@@ -17,13 +18,14 @@ export function requireAuth(req, res, next) {
   }
 }
 
-export function requireRole(role) {
+export function requireRole(expected) {
+  const roles = Array.isArray(expected) ? expected : [expected]
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Unauthorized' })
     }
 
-    if (req.user.role !== role) {
+    if (expected && !matchesAnyRole(req.user.role, roles)) {
       return res.status(403).json({ message: 'Forbidden' })
     }
 

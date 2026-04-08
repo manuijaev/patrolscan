@@ -8,6 +8,7 @@ import Checkpoints from './pages/Checkpoints'
 import Incidents from './pages/Incidents'
 import ScanQR from './pages/ScanQR'
 import UpcomingPatrols from './pages/UpcomingPatrols'
+import SupervisorDashboard from './pages/SupervisorDashboard'
 
 import AdminLogin from './auth/AdminLogin'
 import GuardLogin from './auth/GuardLogin'
@@ -28,12 +29,18 @@ function GuardLoginPage() {
   if (user?.role === 'admin') {
     return <Navigate to="/dashboard" replace />
   }
-  
+
+  if (user?.role === 'supervisor') {
+    return <Navigate to="/supervisor-dashboard" replace />
+  }
+
   // Not logged in, show guard login
   return <GuardLogin />
 }
 
 export default function App() {
+  const user = getUser()
+  const defaultRoute = user?.role === 'supervisor' ? '/supervisor-dashboard' : '/dashboard'
   return (
     <>
       <DynamicManifest />
@@ -47,13 +54,14 @@ export default function App() {
       {/* Admin App */}
       <Route
         element={
-          <RequireAuth role="admin" loginPath="/admin-login">
+          <RequireAuth role={["admin", "supervisor"]} loginPath="/admin-login">
             <Layout />
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Navigate to={defaultRoute} replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="supervisor-dashboard" element={<SupervisorDashboard />} />
         <Route path="guards" element={<Guards />} />
         <Route path="checkpoints" element={<Checkpoints />} />
         <Route path="patrols" element={<Patrols />} />

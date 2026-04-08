@@ -24,6 +24,9 @@ router.post('/admin/login', async (req, res) => {
   console.log('Admin found:', admin ? admin.email : 'not found')
   
   if (!admin) return res.status(401).json({ message: 'Invalid credentials' })
+  if (admin.isActive === false) {
+    return res.status(403).json({ message: 'Your account is disabled' })
+  }
 
   const match = await bcrypt.compare(password, admin.password)
   console.log('Password match:', match)
@@ -31,7 +34,7 @@ router.post('/admin/login', async (req, res) => {
   if (!match) return res.status(401).json({ message: 'Invalid credentials' })
 
   const token = generateToken(admin)
-  res.json({ token, role: 'admin' })
+  res.json({ token, role: admin.role || 'admin' })
 })
 
 // Guard Login
@@ -71,23 +74,6 @@ router.post('/guard/login', async (req, res) => {
 
   const token = generateToken(guard)
   res.json({ token, role: 'guard', guardName: guard.name })
-})
-
-// Create Admin (secret key required)
-router.post('/admin/create', async (req, res) => {
-  const { email, password, secretKey } = req.body
-  
-  // Secret key for admin creation (set in environment)
-  if (secretKey !== process.env.ADMIN_SECRET_KEY) {
-    return res.status(403).json({ message: 'Invalid secret key' })
-  }
-  
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password required' })
-  }
-  
-  // Note: This would need to be persisted - for now just return success
-  res.json({ message: 'Admin creation endpoint - configure persistence' })
 })
 
 export default router

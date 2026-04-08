@@ -12,6 +12,7 @@ import {
   getGuardsWithCheckpoints
 } from '../db/models/index.js'
 import { getGuardWithCheckpoints } from '../db/models/index.js'
+import { filterGuardsByUser, guardIdSet, filterScansByGuardIds } from '../utils/access.js'
 
 function toRad(value) {
   return (value * Math.PI) / 180
@@ -45,6 +46,15 @@ function enrichScansWithNames(scans, guards, checkpoints) {
       checkpointName,
     }
   })
+}
+
+async function getAccessibleGuards(req) {
+  const allGuards = await getGuardsWithCheckpoints()
+  const guards = filterGuardsByUser(req.user, allGuards)
+  return {
+    guards,
+    guardIds: guardIdSet(guards)
+  }
 }
 
 async function validateAndPersistScan({ guardId, payload }) {
@@ -197,11 +207,9 @@ async function validateAndPersistScan({ guardId, payload }) {
 // List all scans (admin)
 export async function getAll(req, res) {
   try {
-    const scans = await getAllScans()
-    const [guards, checkpoints] = await Promise.all([
-      getGuardsWithCheckpoints(),
-      getAllCheckpoints(),
-    ])
+    const { guards, guardIds } = await getAccessibleGuards(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    const checkpoints = await getAllCheckpoints()
     res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -223,11 +231,9 @@ export async function getByGuard(req, res) {
 export async function getByDateRange(req, res) {
   try {
     const { startDate, endDate } = req.query
-    const scans = await getScansByDateRangeDb(startDate, endDate)
-    const [guards, checkpoints] = await Promise.all([
-      getGuardsWithCheckpoints(),
-      getAllCheckpoints(),
-    ])
+    const { guards, guardIds } = await getAccessibleGuards(req)
+    const scans = filterScansByGuardIds(await getScansByDateRangeDb(startDate, endDate), guardIds)
+    const checkpoints = await getAllCheckpoints()
     res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -274,7 +280,8 @@ export async function removeBulk(req, res) {
 // Legacy function for patrols route
 export async function listScans(req, res) {
   try {
-    const scans = await getAllScans()
+    const { guardIds } = await getAccessibleGuards(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })

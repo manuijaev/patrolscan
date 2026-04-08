@@ -1,6 +1,7 @@
 import { getAllScans } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
 import { getGuardsWithCheckpoints, getCheckpointResetDate } from '../db/models/index.js'
+import { filterGuardsByUser, guardIdSet, filterScansByGuardIds, filterIncidentsByGuardIds } from '../utils/access.js'
 import { getAll as getAllIncidents } from '../data/incidents.js'
 
 const RESPONSE_SLA_SECONDS = 15 * 60
@@ -30,6 +31,15 @@ function getAdminNotificationState(adminId) {
     })
   }
   return notificationStateByAdmin.get(adminId)
+}
+
+async function getGuardContext(req) {
+  const allGuards = await getGuardsWithCheckpoints()
+  const guards = filterGuardsByUser(req.user, allGuards)
+  return {
+    guards,
+    guardIds: guardIdSet(guards)
+  }
 }
 
 async function computeMetricsForWindow({ guards, scans, windowStart, windowEnd }) {
@@ -132,12 +142,9 @@ async function computeMetricsForWindow({ guards, scans, windowStart, windowEnd }
 // Get dashboard stats
 export async function getStats(req, res) {
   try {
-    const scans = await getAllScans()
+    const { guards, guardIds } = await getGuardContext(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     const checkpoints = await getAllCheckpoints()
-    const allGuards = await getGuardsWithCheckpoints()
-    
-    // Filter only active guards
-    const guards = allGuards.filter(g => g.isActive !== false)
     
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -166,8 +173,8 @@ export async function getStats(req, res) {
     
     res.json({
       patrolsToday: todayMetrics.successfulScansCount,
-      missedPatrols: missedPatrols,
-      activeGuards: activeGuards,
+      missedPatrols,
+      activeGuards,
       totalCheckpoints: checkpoints.length,
       totalGuards: guards.length,
       totalScans: allSuccessfulScans.length,
@@ -191,8 +198,8 @@ export async function getStats(req, res) {
 // Get timeline of recent scans
 export async function getTimeline(req, res) {
   try {
-    const scans = await getAllScans()
-    const guards = await getGuardsWithCheckpoints()
+    const { guards, guardIds } = await getGuardContext(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     const checkpoints = await getAllCheckpoints()
     const guardNameById = new Map(guards.map(g => [String(g.id), g.name]))
     const checkpointNameById = new Map(checkpoints.map(cp => [String(cp.id), cp.name]))
@@ -223,9 +230,8 @@ export async function getTimeline(req, res) {
 // Get guard performance
 export async function getGuardPerformance(req, res) {
   try {
-    const scans = await getAllScans()
-    const allGuards = await getGuardsWithCheckpoints()
-    const guards = allGuards.filter(g => g.isActive !== false)
+    const { guards, guardIds } = await getGuardContext(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -265,11 +271,10 @@ export async function getGuardPerformance(req, res) {
 // Get upcoming patrols (assigned checkpoints to guards)
 export async function getUpcomingPatrols(req, res) {
   try {
-    const allGuards = await getGuardsWithCheckpoints()
-    const guards = allGuards.filter(g => g.isActive !== false)
+    const { guards, guardIds } = await getGuardContext(req)
     const checkpoints = await getAllCheckpoints()
-    const scans = await getAllScans()
-    
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
@@ -316,7 +321,8 @@ export async function getUpcomingPatrols(req, res) {
 // Get checkpoint status
 export async function getCheckpointStatus(req, res) {
   try {
-    const scans = await getAllScans()
+    const { guardIds } = await getGuardContext(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -351,10 +357,9 @@ export async function getCheckpointStatus(req, res) {
 export async function getNotifications(req, res) {
   try {
     const adminId = Number(req.user?.id || 0)
-    const scans = await getAllScans()
-    const incidents = await getAllIncidents()
-    const allGuards = await getGuardsWithCheckpoints()
-    const guards = allGuards.filter(g => g.isActive !== false)
+    const { guards, guardIds } = await getGuardContext(req)
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    const incidents = filterIncidentsByGuardIds(await getAllIncidents(), guardIds)
     const checkpoints = await getAllCheckpoints()
 
     const guardNameById = new Map(guards.map(g => [Number(g.id), g.name]))

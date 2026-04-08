@@ -9,13 +9,13 @@ import {
   IconShieldCheck,
   IconLogout,
   IconX,
-  IconCalendarTime
+  IconCalendarTime,
+  IconShield
 } from '@tabler/icons-react'
-import { logout } from '../../auth/authStore'
-import { getToken } from '../../auth/authStore'
+import { logout, getToken, getUser } from '../../auth/authStore'
 import api from '../../api/axios'
 
-const menu = [
+const baseMenu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
   { name: 'Upcoming Patrols', path: '/upcoming-patrols', icon: IconCalendarTime },
   { name: 'Guards', path: '/guards', icon: IconUsers },
@@ -28,6 +28,10 @@ const INCIDENTS_SEEN_AT_KEY = 'admin_incidents_seen_at_v1'
 export default function Sidebar({ variant = 'desktop', onClose }) {
   const location = useLocation()
   const [incidentCount, setIncidentCount] = useState(0)
+  const user = getUser()
+  const navMenu = user?.role === 'supervisor'
+    ? [{ name: 'Supervisor Dashboard', path: '/supervisor-dashboard', icon: IconShield }, ...baseMenu]
+    : baseMenu
 
   function getSeenAt() {
     return localStorage.getItem(INCIDENTS_SEEN_AT_KEY)
@@ -126,7 +130,7 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
 
       {/* Navigation */}
       <nav className="px-4 space-y-2 mt-2">
-        {menu.map(({ name, path, icon: Icon }) => (
+        {navMenu.map(({ name, path, icon: Icon }) => (
           <NavLink
             key={path}
             to={path}

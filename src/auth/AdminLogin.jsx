@@ -57,9 +57,11 @@ export default function AdminLogin() {
     try {
       const normalizedEmail = email.trim().toLowerCase()
       const res = await api.post('/auth/admin/login', { email: normalizedEmail, password })
-      saveAuth(res.data.token, { role: 'admin' }, rememberMe)
+      const userRole = res.data.role || 'admin'
+      saveAuth(res.data.token, { role: userRole }, rememberMe)
       setIsSuccess(true)
-      setTimeout(() => navigate('/dashboard'), 600)
+      const nextRoute = userRole === 'supervisor' ? '/supervisor-dashboard' : '/dashboard'
+      setTimeout(() => navigate(nextRoute), 600)
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password')
       setPassword('')

@@ -19,6 +19,10 @@ const Guard = sequelize.define('Guard', {
     type: DataTypes.STRING,
     defaultValue: 'guard'
   },
+  supervisorId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

@@ -2,14 +2,16 @@
 import { getGuardsWithCheckpoints, assignCheckpointsToGuard, getAllGuards, getCheckpointResetDate, resetCheckpointAssignment } from '../db/models/index.js'
 import { getAllCheckpoints } from '../db/models/index.js'
 import { getAllScans } from '../db/models/index.js'
+import { filterGuardsByUser, guardIdSet, filterScansByGuardIds, guardBelongsToUser } from '../utils/access.js'
 
 // Get all patrol assignments with status
 export async function getPatrolAssignments(req, res) {
   try {
     const allGuards = await getGuardsWithCheckpoints()
-    const guards = allGuards.filter(g => g.isActive !== false)
+    const guards = filterGuardsByUser(req.user, allGuards)
+    const guardIds = guardIdSet(guards)
     const checkpoints = await getAllCheckpoints()
-    const scans = await getAllScans()
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
     
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -73,9 +75,21 @@ export async function assignPatrolCheckpoint(req, res) {
     
     const guards = await getAllGuards()
     const guard = guards.find(g => Number(g.id) === Number(guardId))
-    
+
     if (!guard) {
       return res.status(404).json({ message: 'Guard not found' })
+    }
+
+    if (!guardBelongsToUser(req.user, guard)) {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+
+    if (!guardBelongsToUser(req.user, guard)) {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+
+    if (!guardBelongsToUser(req.user, guard)) {
+      return res.status(403).json({ message: 'Forbidden' })
     }
     
     const checkpoints = await getAllCheckpoints()
@@ -200,15 +214,16 @@ export async function updatePatrolAssignment(req, res) {
       return res.status(400).json({ message: 'checkpointId and newGuardId are required' })
     }
     
-    const guards = await getAllGuards()
-    const newGuard = guards.find(g => Number(g.id) === Number(newGuardId))
-    
+    const allGuards = await getAllGuards()
+    const accessibleGuards = filterGuardsByUser(req.user, allGuards)
+    const newGuard = accessibleGuards.find(g => Number(g.id) === Number(newGuardId))
+
     if (!newGuard) {
       return res.status(404).json({ message: 'Guard not found' })
     }
     
     // Remove from current guard(s) and add to new guard
-    for (const guard of guards) {
+    for (const guard of accessibleGuards) {
       const currentAssigned = guard.assignedCheckpoints || []
       const hasCheckpoint = currentAssigned.some(id => String(id) === String(checkpointId))
       

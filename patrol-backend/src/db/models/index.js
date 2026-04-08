@@ -27,16 +27,18 @@ export async function getGuardByName(name) {
 }
 
 // Create a new guard
-export async function createGuard({ name, pin }) {
+export async function createGuard({ name, pin, supervisorId = null }) {
   const existingGuards = await Guard.findAll()
   const maxId = existingGuards.length > 0 
     ? Math.max(...existingGuards.map(g => g.id)) 
     : 0
+  const normalizedSupervisorId = supervisorId ? Number(supervisorId) : null
   
   const guard = await Guard.create({
     id: maxId + 1,
     name: name.trim(),
     pin,
+    supervisorId: normalizedSupervisorId,
     role: 'guard',
     isActive: true,
     assignedCheckpoints: [],
@@ -46,12 +48,15 @@ export async function createGuard({ name, pin }) {
 }
 
 // Update guard
-export async function updateGuard(id, { name, pin }) {
+export async function updateGuard(id, { name, pin, supervisorId }) {
   const guard = await Guard.findByPk(id)
   if (!guard) return null
   
   if (name) guard.name = name
   if (pin) guard.pin = pin
+  if (supervisorId !== undefined) {
+    guard.supervisorId = supervisorId ? Number(supervisorId) : null
+  }
   
   await guard.save()
   return guard
@@ -281,12 +286,50 @@ export async function getAdminByEmail(email) {
 }
 
 // Create admin
-export async function createAdmin({ email, password, role = 'admin' }) {
+export async function createAdmin({ email, password, role = 'admin', isActive = true }) {
   const normalizedEmail = email?.trim().toLowerCase()
-  return await Admin.create({ email: normalizedEmail, password, role })
+  return await Admin.create({ email: normalizedEmail, password, role, isActive })
 }
 
 // Get all admins
 export async function getAllAdmins() {
   return await Admin.findAll()
+}
+
+// Get admin by ID
+export async function getAdminById(id) {
+  return await Admin.findByPk(id)
+}
+
+// Update admin
+export async function updateAdmin(id, updates = {}) {
+  const admin = await Admin.findByPk(id)
+  if (!admin) return null
+
+  if (updates.email) {
+    admin.email = updates.email.trim().toLowerCase()
+  }
+
+  if (typeof updates.isActive === 'boolean') {
+    admin.isActive = updates.isActive
+  }
+
+  if (updates.role) {
+    admin.role = updates.role
+  }
+
+  if (updates.password) {
+    admin.password = updates.password
+  }
+
+  await admin.save()
+  return admin
+}
+
+// Delete admin
+export async function deleteAdmin(id) {
+  const admin = await Admin.findByPk(id)
+  if (!admin) return false
+  await admin.destroy()
+  return true
 }

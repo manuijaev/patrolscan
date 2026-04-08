@@ -9,8 +9,8 @@ router.get('/', requireAuth(), getAll)
 router.get('/:id', requireAuth(), getById)
 
 // Only admins can manage checkpoints
-router.post('/', requireAuth('admin'), create)
-router.put('/:id', requireAuth('admin'), update)
-router.delete('/:id', requireAuth('admin'), remove)
+router.post('/', requireAuth(['admin', 'supervisor']), create)
+router.put('/:id', requireAuth(['admin', 'supervisor']), update)
+router.delete('/:id', requireAuth(['admin', 'supervisor']), remove)
 
 export default router

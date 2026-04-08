@@ -8,7 +8,7 @@ const router = express.Router()
 router.post('/', requireAuth(), create)
 
 // Admin can view all incidents
-router.get('/', requireAuth('admin'), getAll)
-router.delete('/:id', requireAuth('admin'), remove)
+router.get('/', requireAuth(['admin', 'supervisor']), getAll)
+router.delete('/:id', requireAuth(['admin', 'supervisor']), remove)
 
 export default router

@@ -62,7 +62,7 @@ async function seed() {
       await createAdmin({
         email: 'kenyaniemmanuel44@gmail.com',
         password: hashedPassword,
-        role: 'admin'
+        role: 'super-admin'
       })
       console.log('Default admin created: kenyaniemmanuel44@gmail.com / admin123')
     } else {

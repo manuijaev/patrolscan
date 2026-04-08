@@ -1,5 +1,15 @@
 import * as incidents from '../data/incidents.js'
 import * as db from '../db/models/index.js'
+import { filterGuardsByUser, guardIdSet, filterIncidentsByGuardIds } from '../utils/access.js'
+
+async function getAccessibleGuards(req) {
+  const allGuards = await db.getGuardsWithCheckpoints()
+  const guards = filterGuardsByUser(req.user, allGuards)
+  return {
+    guards,
+    guardIds: guardIdSet(guards)
+  }
+}
 
 // Guard creates incident
 export const create = async (req, res) => {
@@ -45,8 +55,8 @@ export const create = async (req, res) => {
 // Admin gets all incidents
 export const getAll = async (req, res) => {
   try {
-    const allIncidents = await incidents.getAll()
-    const guards = await db.getAllGuards()
+    const { guards, guardIds } = await getAccessibleGuards(req)
+    const allIncidents = filterIncidentsByGuardIds(await incidents.getAll(), guardIds)
     const allCheckpoints = await db.getAllCheckpoints()
 
     const enriched = allIncidents

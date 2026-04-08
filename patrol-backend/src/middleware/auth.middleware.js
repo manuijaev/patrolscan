@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { matchesAnyRole } from '../utils/access.js'
 
 export function requireAuth(role = null) {
   return (req, res, next) => {
@@ -13,8 +14,11 @@ export function requireAuth(role = null) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
-      if (role && decoded.role !== role) {
-        return res.status(403).json({ message: 'Forbidden' })
+      if (role) {
+        const roles = Array.isArray(role) ? role : [role]
+        if (!matchesAnyRole(decoded.role, roles)) {
+          return res.status(403).json({ message: 'Forbidden' })
+        }
       }
 
       req.user = decoded

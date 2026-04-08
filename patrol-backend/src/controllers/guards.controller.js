@@ -1,30 +1,28 @@
 import bcrypt from 'bcrypt'
-import { 
-  getAllGuards, 
-  createGuard as dbCreateGuard, 
-  updateGuard as dbUpdateGuard, 
-  deleteGuard as dbDeleteGuard, 
-  assignCheckpointsToGuard, 
-  getGuardsWithCheckpoints, 
+import {
+  createGuard as dbCreateGuard,
+  updateGuard as dbUpdateGuard,
+  deleteGuard as dbDeleteGuard,
+  assignCheckpointsToGuard,
+  getGuardsWithCheckpoints,
   unassignCheckpoint as dbUnassignCheckpoint,
-  getCheckpointResetDate
+  getCheckpointResetDate,
+  getGuardById
 } from '../db/models/index.js'
 import { getAllScans } from '../db/models/index.js'
-import { getAllCheckpoints } from '../db/models/index.js'
+import { filterGuardsByUser, guardIdSet, guardBelongsToUser } from '../utils/access.js'
 
 export async function listGuards(req, res) {
   const guards = await getGuardsWithCheckpoints()
-  const scans = await getAllScans()
-  const checkpoints = await getAllCheckpoints()
-  
-  // Filter out inactive guards
-  const activeGuards = guards.filter(g => g.isActive !== false)
+  const accessibleGuards = filterGuardsByUser(req.user, guards)
+  const guardIds = guardIdSet(accessibleGuards)
+  const scans = (await getAllScans()).filter(scan => guardIds.has(Number(scan.guardId)))
   
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   
   // Get checkpoints completed today for each guard, respecting reset dates
-  const guardsWithStatus = await Promise.all(activeGuards.map(async g => {
+  const guardsWithStatus = await Promise.all(accessibleGuards.map(async g => {
     const guardScans = []
     
     for (const cpId of (g.assignedCheckpoints || [])) {
@@ -48,6 +46,7 @@ export async function listGuards(req, res) {
       id: g.id,
       name: g.name,
       role: g.role,
+      supervisorId: g.supervisorId || null,
       assignedCheckpoints: g.assignedCheckpoints || [],
       completedCheckpoints: guardScans,
     }
@@ -57,7 +56,7 @@ export async function listGuards(req, res) {
 }
 
 export async function createGuard(req, res) {
-  const { name, pin } = req.body
+  const { name, pin, supervisorId: requestedSupervisorId } = req.body
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Name is required' })
@@ -67,10 +66,25 @@ export async function createGuard(req, res) {
     return res.status(400).json({ message: 'PIN must be 4 digits' })
   }
 
+  const isSupervisor = req.user?.role === 'supervisor'
+  const normalizedSupervisorId = isSupervisor
+    ? Number(req.user.id)
+    : Number.isFinite(Number(requestedSupervisorId))
+      ? Number(requestedSupervisorId)
+      : null
+
+  if (!normalizedSupervisorId) {
+    return res.status(400).json({ message: 'Supervisor assignment is required' })
+  }
+
   const hashedPin = bcrypt.hashSync(pin, 10)
   console.log('Creating guard:', name, 'PIN hash:', hashedPin)
   
-  const guard = await dbCreateGuard({ name: name.trim(), pin: hashedPin })
+  const guard = await dbCreateGuard({
+    name: name.trim(),
+    pin: hashedPin,
+    supervisorId: normalizedSupervisorId
+  })
   
   console.log('Guard created:', guard.name, 'ID:', guard.id, 'isActive:', guard.isActive)
 
@@ -84,10 +98,19 @@ export async function createGuard(req, res) {
 
 export async function updateGuardController(req, res) {
   const { id } = req.params
-  const { name, pin } = req.body
+  const { name, pin, supervisorId } = req.body
 
-  if (!name && !pin) {
-    return res.status(400).json({ message: 'Name or PIN is required' })
+  if (!name && !pin && supervisorId === undefined) {
+    return res.status(400).json({ message: 'Name, PIN or supervisor is required' })
+  }
+
+  const guard = await getGuardById(Number(id))
+  if (!guard) {
+    return res.status(404).json({ message: 'Guard not found' })
+  }
+
+  if (!guardBelongsToUser(req.user, guard)) {
+    return res.status(403).json({ message: 'Forbidden' })
   }
 
   const updates = {}
@@ -96,21 +119,37 @@ export async function updateGuardController(req, res) {
     updates.pin = bcrypt.hashSync(pin, 10)
   }
 
-  const guard = await dbUpdateGuard(Number(id), updates)
+  if (supervisorId !== undefined && req.user?.role !== 'supervisor') {
+    updates.supervisorId = Number.isFinite(Number(supervisorId))
+      ? Number(supervisorId)
+      : null
+  }
 
-  if (!guard) {
+  const updatedGuard = await dbUpdateGuard(Number(id), updates)
+
+  if (!updatedGuard) {
     return res.status(404).json({ message: 'Guard not found' })
   }
 
   return res.json({
-    id: guard.id,
-    name: guard.name,
-    role: guard.role,
+    id: updatedGuard.id,
+    name: updatedGuard.name,
+    role: updatedGuard.role,
+    supervisorId: updatedGuard.supervisorId,
   })
 }
 
 export async function removeGuard(req, res) {
   const { id } = req.params
+
+  const guard = await getGuardById(Number(id))
+  if (!guard) {
+    return res.status(404).json({ message: 'Guard not found' })
+  }
+
+  if (!guardBelongsToUser(req.user, guard)) {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
 
   const success = await dbDeleteGuard(Number(id))
 
@@ -129,6 +168,15 @@ export async function assignCheckpointsController(req, res) {
     return res.status(400).json({ message: 'checkpointIds array is required' })
   }
 
+  const guard = await getGuardById(Number(id))
+  if (!guard) {
+    return res.status(404).json({ message: 'Guard not found' })
+  }
+
+  if (!guardBelongsToUser(req.user, guard)) {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
+
   const success = await assignCheckpointsToGuard(Number(id), checkpointIds)
 
   if (!success) {
@@ -140,6 +188,15 @@ export async function assignCheckpointsController(req, res) {
 
 export async function unassignCheckpointController(req, res) {
   const { id, checkpointId } = req.params
+
+  const guard = await getGuardById(Number(id))
+  if (!guard) {
+    return res.status(404).json({ message: 'Guard not found' })
+  }
+
+  if (!guardBelongsToUser(req.user, guard)) {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
 
   const success = await dbUnassignCheckpoint(Number(id), checkpointId)
 
