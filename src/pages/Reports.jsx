@@ -464,6 +464,70 @@ export default function Reports({ showHeading = true }) {
         </div>
       )}
 
+      {!showHeading && (
+        <div className="flex items-center gap-2">
+          {selectionMode ? (
+            <>
+              <select
+                value={deleteRange}
+                onChange={(e) => setDeleteRange(e.target.value)}
+                className="rounded-xl bg-[color:var(--bg-muted)] border border-[color:var(--border)] px-3 py-2 text-sm"
+              >
+                <option value="7d">Last 7 Days</option>
+                <option value="1m">Last Month</option>
+                <option value="6m">Last 6 Months</option>
+                <option value="1y">Last Year</option>
+              </select>
+              <button
+                onClick={exitSelectionMode}
+                className="px-4 py-2 rounded-xl border border-[color:var(--border)] text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteSelectedScans}
+                disabled={!selectedScanIds.length || deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
+              >
+                <IconTrash size={16} />
+                {deleting ? 'Deleting...' : `Delete (${selectedScanIds.length})`}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setSelectionMode(true)}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[color:var(--border)] hover:bg-[color:var(--bg-muted)] transition text-sm disabled:opacity-50"
+              >
+                <IconCheck size={16} />
+                Select
+              </button>
+              <button
+                onClick={exportPDF}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white
+                hover:bg-red-700 transition font-medium disabled:opacity-50
+                disabled:cursor-not-allowed"
+              >
+                <IconDownload size={18} />
+                Export PDF
+              </button>
+              <button
+                onClick={exportCSV}
+                disabled={!filteredScans.length}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
+                hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50
+                disabled:cursor-not-allowed"
+              >
+                <IconDownload size={18} />
+                Export CSV
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">
           <p className="text-sm font-medium">{error}</p>
