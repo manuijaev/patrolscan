@@ -14,7 +14,7 @@ import {
 } from '../db/models/index.js'
 import { getGuardWithCheckpoints } from '../db/models/index.js'
 import { filterGuardsByUser, guardIdSet, filterScansByGuardIds } from '../utils/access.js'
-import { generateSlots } from '../utils/schedule.js'
+import { generateSlots, isTimeInScheduledSlot } from '../utils/schedule.js'
 
 function toRad(value) {
   return (value * Math.PI) / 180
@@ -200,12 +200,8 @@ async function validateAndPersistScan({ guardId, payload }) {
         frequencyMinutes: scheduleConfig.frequencyMinutes
       })
       
-      // Check if scan time falls within any slot
-      const inSlot = slots.some(slot => {
-        const slotStart = new Date(slot.start)
-        const slotEnd = new Date(slot.end)
-        return scanTime >= slotStart && scanTime < slotEnd
-      })
+      // Use time-of-day based slot checking (ignores dates)
+      const inSlot = isTimeInScheduledSlot(scanTime, slots)
       
       if (!inSlot) {
         scheduleViolation = `Scanned outside scheduled hours. Scan time: ${scanTime.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}, scheduled: ${scheduleConfig.startTime} - ${scheduleConfig.endTime}`

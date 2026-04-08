@@ -7,22 +7,25 @@ export function generateSlots({ startTime, endTime, frequencyMinutes }) {
   const [startHour, startMin] = startTime.split(':').map(Number)
   const [endHour, endMin] = endTime.split(':').map(Number)
   
-  // Create dates for comparison
-  let current = new Date()
+  // Use a fixed reference date (2000-01-01) to avoid date issues
+  // This ensures slots are generated consistently regardless of when they're checked
+  const refDate = new Date('2000-01-01T00:00:00.000Z')
+  
+  let current = new Date(refDate)
   current.setHours(startHour, startMin, 0, 0)
   
-  const end = new Date()
+  let end = new Date(refDate)
   end.setHours(endHour, endMin, 0, 0)
   
   // Handle overnight schedules: if end time is earlier than start time, it's the next day
   const isOvernight = endHour < startHour || (endHour === startHour && endMin < startMin)
   if (isOvernight) {
-    end.setDate(end.getDate() + 1)
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000) // Add 24 hours
   }
   
   // Also handle case where end is midnight (00:00) - treat as next day
   if (endHour === 0 && endMin === 0) {
-    end.setDate(end.getDate() + 1)
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000)
   }
   
   while (current < end) {
@@ -45,6 +48,38 @@ export function generateSlots({ startTime, endTime, frequencyMinutes }) {
   }
   
   return slots
+}
+
+// Check if a scan time falls within any scheduled slot (using time-of-day only)
+export function isTimeInScheduledSlot(scanTime, slots) {
+  // Extract hours and minutes from scan time
+  const scanHours = scanTime.getHours()
+  const scanMinutes = scanTime.getMinutes()
+  const scanTotalMinutes = scanHours * 60 + scanMinutes
+  
+  for (const slot of slots) {
+    // Parse slot times
+    const [startH, startM] = slot.startTime.split(':').map(Number)
+    const [endH, endM] = slot.endTime.split(':').map(Number)
+    
+    const startTotal = startH * 60 + startM
+    const endTotal = endH * 60 + endM
+    
+    // Handle overnight slots
+    if (endTotal <= startTotal) {
+      // Slot crosses midnight
+      if (scanTotalMinutes >= startTotal || scanTotalMinutes < endTotal) {
+        return true
+      }
+    } else {
+      // Normal slot within same day
+      if (scanTotalMinutes >= startTotal && scanTotalMinutes < endTotal) {
+        return true
+      }
+    }
+  }
+  
+  return false
 }
 
 // Validate schedule config
