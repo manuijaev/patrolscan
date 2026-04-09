@@ -355,7 +355,7 @@ export function exportPatrolReport(scans, meta = {}) {
     s.guardName || 'Unknown',
     s.checkpointName || 'Unknown',
     s.result === 'passed' ? 'Passed' : 'Failed',
-    s.resultDetails?.reason || '',
+    s.failureReason || s.resultDetails?.reason || '',
     toMetersText(s.resultDetails?.gpsAccuracy)
   ])
 
@@ -433,12 +433,23 @@ export function exportPatrolReport(scans, meta = {}) {
     }
   })
 
-  const outOfRangeScans = scans.filter(s => (s.resultDetails?.reason || '').toLowerCase().includes('out of range'))
+  const outOfRangeScans = scans.filter(s => 
+    (s.failureReason || s.resultDetails?.reason || '').toLowerCase().includes('out of range'))
+  const scheduleViolations = scans.filter(s => 
+    (s.failureReason || s.resultDetails?.reason || '').toLowerCase().includes('scheduled hours'))
   if (outOfRangeScans.length > 0) {
     issues.push({
       severity: 'Medium',
       title: `${outOfRangeScans.length} "Out of Range" Failures`,
       detail: 'Guards are scanning from positions outside allowed radius. Either tighten patrol ' + 'discipline or increase checkpoint radius in the admin panel.'
+    })
+  }
+
+  if (scheduleViolations.length > 0) {
+    issues.push({
+      severity: 'Medium',
+      title: `${scheduleViolations.length} Scans Outside Scheduled Hours`,
+      detail: 'Guards scanned outside the allowed time windows. Review the schedule configuration ' + 'or consider switching to FREE mode if patrols can happen at any time.'
     })
   }
 

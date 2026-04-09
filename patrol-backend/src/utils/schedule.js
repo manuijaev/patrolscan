@@ -51,6 +51,7 @@ export function generateSlots({ startTime, endTime, frequencyMinutes }) {
 }
 
 // Check if a scan time falls within any scheduled slot (using time-of-day only)
+// Returns { inSlot: boolean, slotStart: string, slotEnd: string, slotIndex: number }
 export function isTimeInScheduledSlot(scanTime, slots) {
   // The scan time is in UTC from the server, but the schedule is in local time (Africa/Nairobi)
   // Convert to Nairobi time (UTC+3) for comparison
@@ -62,8 +63,10 @@ export function isTimeInScheduledSlot(scanTime, slots) {
   const scanMinutes = scanTimeNairobi.getUTCMinutes()
   const scanTotalMinutes = scanHours * 60 + scanMinutes
   
-  for (const slot of slots) {
-    // Parse slot times
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]
+    
+    // Parse slot times (these are already in HH:MM format from generateSlots)
     const [startH, startM] = slot.startTime.split(':').map(Number)
     const [endH, endM] = slot.endTime.split(':').map(Number)
     
@@ -74,17 +77,36 @@ export function isTimeInScheduledSlot(scanTime, slots) {
     if (endTotal <= startTotal) {
       // Slot crosses midnight
       if (scanTotalMinutes >= startTotal || scanTotalMinutes < endTotal) {
-        return true
+        return { inSlot: true, slotStart: slot.startTime, slotEnd: slot.endTime, slotIndex: i }
       }
     } else {
       // Normal slot within same day
       if (scanTotalMinutes >= startTotal && scanTotalMinutes < endTotal) {
-        return true
+        return { inSlot: true, slotStart: slot.startTime, slotEnd: slot.endTime, slotIndex: i }
       }
     }
   }
   
-  return false
+  // Find the closest slot for the error message
+  let closestSlot = null
+  let minDiff = Infinity
+  
+  for (const slot of slots) {
+    const [startH, startM] = slot.startTime.split(':').map(Number)
+    const startTotal = startH * 60 + startM
+    const diff = Math.abs(scanTotalMinutes - startTotal)
+    if (diff < minDiff) {
+      minDiff = diff
+      closestSlot = slot
+    }
+  }
+  
+  return { 
+    inSlot: false, 
+    slotStart: closestSlot?.startTime || '', 
+    slotEnd: closestSlot?.endTime || '',
+    slotIndex: -1
+  }
 }
 
 // Validate schedule config
