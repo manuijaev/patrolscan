@@ -200,16 +200,15 @@ async function validateAndPersistScan({ guardId, payload }) {
         frequencyMinutes: scheduleConfig.frequencyMinutes
       })
       
-      console.log('[DEBUG] Schedule config:', scheduleConfig.startTime, '-', scheduleConfig.endTime, 'every', scheduleConfig.frequencyMinutes, 'mins')
-      console.log('[DEBUG] Generated slots:', JSON.stringify(slots))
-      console.log('[DEBUG] Scan time:', scanTime.toISOString(), '| hours:', scanTime.getHours(), '| minutes:', scanTime.getMinutes())
-      
-      // Use time-of-day based slot checking (ignores dates)
+      // Use time-of-day based slot checking (ignores dates, uses Nairobi timezone)
       const inSlot = isTimeInScheduledSlot(scanTime, slots)
-      console.log('[DEBUG] In slot?', inSlot)
       
       if (!inSlot) {
-        scheduleViolation = `Scanned outside scheduled hours. Scan time: ${scanTime.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}, scheduled: ${scheduleConfig.startTime} - ${scheduleConfig.endTime}`
+        // Convert scan time to Nairobi timezone for display
+        const nairobiOffset = 3 * 60 * 60 * 1000 // +3 hours
+        const scanTimeNairobi = new Date(scanTime.getTime() + nairobiOffset)
+        const scanTimeStr = scanTimeNairobi.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })
+        scheduleViolation = `Scanned outside scheduled hours. Scan time: ${scanTimeStr}, scheduled: ${scheduleConfig.startTime} - ${scheduleConfig.endTime}`
       }
     }
   }
