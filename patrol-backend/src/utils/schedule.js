@@ -52,10 +52,17 @@ export function generateSlots({ startTime, endTime, frequencyMinutes }) {
 
 // Check if a scan time falls within any scheduled slot (using time-of-day only)
 export function isTimeInScheduledSlot(scanTime, slots) {
+  // Debug logging
+  console.log('[DEBUG isTimeInScheduledSlot] scanTime:', scanTime.toISOString())
+  console.log('[DEBUG isTimeInScheduledSlot] scanTime local:', scanTime.toLocaleTimeString())
+  console.log('[DEBUG isTimeInScheduledSlot] slots:', JSON.stringify(slots))
+  
   // Extract hours and minutes from scan time
   const scanHours = scanTime.getHours()
   const scanMinutes = scanTime.getMinutes()
   const scanTotalMinutes = scanHours * 60 + scanMinutes
+  
+  console.log('[DEBUG isTimeInScheduledSlot] scanTotalMinutes:', scanTotalMinutes)
   
   for (const slot of slots) {
     // Parse slot times
@@ -65,20 +72,25 @@ export function isTimeInScheduledSlot(scanTime, slots) {
     const startTotal = startH * 60 + startM
     const endTotal = endH * 60 + endM
     
+    console.log('[DEBUG isTimeInScheduledSlot] Checking slot:', slot.startTime, '-', slot.endTime, '| startTotal:', startTotal, 'endTotal:', endTotal)
+    
     // Handle overnight slots
     if (endTotal <= startTotal) {
       // Slot crosses midnight
       if (scanTotalMinutes >= startTotal || scanTotalMinutes < endTotal) {
+        console.log('[DEBUG isTimeInScheduledSlot] MATCH (overnight)')
         return true
       }
     } else {
       // Normal slot within same day
       if (scanTotalMinutes >= startTotal && scanTotalMinutes < endTotal) {
+        console.log('[DEBUG isTimeInScheduledSlot] MATCH (normal)')
         return true
       }
     }
   }
   
+  console.log('[DEBUG isTimeInScheduledSlot] NO MATCH')
   return false
 }
 

@@ -200,8 +200,13 @@ async function validateAndPersistScan({ guardId, payload }) {
         frequencyMinutes: scheduleConfig.frequencyMinutes
       })
       
+      console.log('[DEBUG] Schedule config:', scheduleConfig.startTime, '-', scheduleConfig.endTime, 'every', scheduleConfig.frequencyMinutes, 'mins')
+      console.log('[DEBUG] Generated slots:', JSON.stringify(slots))
+      console.log('[DEBUG] Scan time:', scanTime.toISOString(), '| hours:', scanTime.getHours(), '| minutes:', scanTime.getMinutes())
+      
       // Use time-of-day based slot checking (ignores dates)
       const inSlot = isTimeInScheduledSlot(scanTime, slots)
+      console.log('[DEBUG] In slot?', inSlot)
       
       if (!inSlot) {
         scheduleViolation = `Scanned outside scheduled hours. Scan time: ${scanTime.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}, scheduled: ${scheduleConfig.startTime} - ${scheduleConfig.endTime}`
