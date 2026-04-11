@@ -6,6 +6,7 @@ import {
   recordScan,
   remove,
   removeBulk,
+  sendAlert,
 } from '../controllers/scans.controller.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
 
@@ -13,6 +14,9 @@ const router = express.Router()
 
 // Guard can record scans
 router.post('/record', requireAuth(), recordScan)
+
+// Guard can send emergency alert
+router.post('/alert', requireAuth(), sendAlert)
 
 // Guard can get their own scans
 router.get('/my-scans', requireAuth(), getByGuard)

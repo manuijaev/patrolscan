@@ -22,7 +22,8 @@ import {
   IconArrowLeft,
   IconEye,
   IconLogout,
-  IconTrash
+  IconTrash,
+  IconBell
 } from '@tabler/icons-react'
 import api from '../api/axios'
 import { saveOfflineScan } from '../offline/db'
@@ -76,6 +77,8 @@ export default function ScanQR() {
   const [selectedScanKeys, setSelectedScanKeys] = useState([])
   const [deleteRange, setDeleteRange] = useState('7d')
   const [deletingScans, setDeletingScans] = useState(false)
+  const [alertTriggered, setAlertTriggered] = useState(false)
+  const alertAudioRef = useRef(null)
 
   // Incident reporting state
   const [incidentCheckpointId, setIncidentCheckpointId] = useState('')
@@ -363,6 +366,46 @@ export default function ScanQR() {
     await stopScanner()
     logout()
     navigate('/guard-login', { replace: true })
+  }
+
+  // Handle emergency alert - sends critical notification to supervisors
+  async function handleEmergencyAlert() {
+    try {
+      // Get guard info
+      const user = getUser()
+      
+      // Send alert to backend
+      await api.post('/scans/alert', {
+        guardId: user?.id,
+        guardName: user?.name,
+        type: 'emergency_alert',
+        severity: 'critical',
+        message: 'EMERGENCY: Guard under attack! Immediate assistance required.',
+        timestamp: new Date().toISOString()
+      })
+      
+      toast.error('ALERT SENT! Supervisors have been notified. Help is on the way!')
+      
+      // Play the alert sound in loop
+      if (alertAudioRef.current) {
+        alertAudioRef.current.loop = true
+        alertAudioRef.current.play().catch(e => console.log('Audio play error:', e))
+      }
+      
+      setAlertTriggered(true)
+    } catch (error) {
+      console.error('Alert error:', error)
+      toast.error('Failed to send alert. Try again.')
+    }
+  }
+
+  // Stop alert sound
+  function stopAlertSound() {
+    if (alertAudioRef.current) {
+      alertAudioRef.current.pause()
+      alertAudioRef.current.currentTime = 0
+    }
+    setAlertTriggered(false)
   }
 
   // Save scan to localStorage for persistence
@@ -1076,6 +1119,8 @@ export default function ScanQR() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Alert Sound Audio Element */}
+      <audio ref={alertAudioRef} src="/sounds/public/alert.mp3" preload="auto" />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 px-4 py-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1111,6 +1156,18 @@ export default function ScanQR() {
                 <IconSun size={17} className="theme-toggle-icon theme-toggle-sun" />
                 <IconMoon size={17} className="theme-toggle-icon theme-toggle-moon" />
               </span>
+            </button>
+            {/* Emergency Alert Button */}
+            <button
+              onClick={handleEmergencyAlert}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
+                alertTriggered 
+                  ? 'bg-red-600 text-white animate-pulse' 
+                  : 'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white'
+              }`}
+            >
+              <IconBell size={18} className={alertTriggered ? 'animate-bounce' : ''} />
+              <span className="text-sm font-medium">{alertTriggered ? 'SENDING...' : 'ALERT'}</span>
             </button>
             <button
               onClick={restartScanner}

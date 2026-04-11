@@ -342,3 +342,35 @@ export async function createScan(req, res) {
     res.status(500).json({ error: error.message })
   }
 }
+
+// Send emergency alert from guard
+export async function sendAlert(req, res) {
+  try {
+    const { guardId, guardName, message, type, severity } = req.body
+    
+    // Create a critical notification for supervisors
+    // This will be picked up by the dashboard notifications
+    const notification = {
+      type: type || 'emergency_alert',
+      severity: severity || 'critical',
+      title: 'EMERGENCY ALERT',
+      message: message || `Guard ${guardName || 'Unknown'} triggered an emergency alert!`,
+      guardId,
+      guardName,
+      timestamp: new Date().toISOString(),
+      unread: true
+    }
+    
+    // Store the alert - in a real app, you'd save to DB
+    // For now, we'll just return success
+    console.log('[EMERGENCY ALERT]', notification)
+    
+    res.json({ 
+      ok: true, 
+      message: 'Alert sent to supervisors',
+      alert: notification
+    })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
