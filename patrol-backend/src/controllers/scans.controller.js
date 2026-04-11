@@ -10,7 +10,8 @@ import {
   getCheckpointById,
   getAllCheckpoints,
   getGuardsWithCheckpoints,
-  getAdminById
+  getAdminById,
+  getGuardById
 } from '../db/models/index.js'
 import { getGuardWithCheckpoints } from '../db/models/index.js'
 import { filterGuardsByUser, guardIdSet, filterScansByGuardIds } from '../utils/access.js'
@@ -346,7 +347,12 @@ export async function createScan(req, res) {
 // Send emergency alert from guard
 export async function sendAlert(req, res) {
   try {
-    const guardId = req.user.id
+    const guardId = req.user?.id
+    
+    if (!guardId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    
     const { guardName, message, type, severity, checkpointIds } = req.body
     
     // Get guard's assigned checkpoints
@@ -380,16 +386,12 @@ export async function sendAlert(req, res) {
       }
     }
     
-    // Create the alert scan record
-    await createScan(scanData)
+    console.log('[ALERT] Creating alert scan:', scanData)
     
-    console.log('[EMERGENCY ALERT] Created:', {
-      id: alertId,
-      guardId,
-      guardName: guardName || guard?.name,
-      checkpoints: assignedCheckpointNames,
-      message
-    })
+    // Create the alert scan record
+    await dbCreateScan(scanData)
+    
+    console.log('[ALERT] Created successfully')
     
     res.json({ 
       ok: true, 
@@ -403,6 +405,7 @@ export async function sendAlert(req, res) {
       }
     })
   } catch (error) {
+    console.error('[ALERT] Error:', error.message)
     res.status(500).json({ error: error.message })
   }
 }
