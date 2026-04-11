@@ -27,6 +27,23 @@ export default function Incidents({ showHeading = true }) {
   const [highlightedIncidentId, setHighlightedIncidentId] = useState('')
   const portalTarget = typeof document !== 'undefined' ? document.body : null
   const [downloadingImageKey, setDownloadingImageKey] = useState('')
+  const [alertData, setAlertData] = useState(null)
+
+  // Parse alert data from URL params when navigating from notification
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const alertId = params.get('alertId')
+    if (alertId) {
+      setAlertData({
+        id: alertId,
+        guardId: params.get('guardId'),
+        guardName: params.get('guardName'),
+        checkpointNames: params.get('checkpointNames'),
+        message: decodeURIComponent(params.get('message') || ''),
+        time: new Date().toISOString(),
+      })
+    }
+  }, [location.search])
 
   useEffect(() => {
     let active = true
@@ -264,6 +281,27 @@ export default function Incidents({ showHeading = true }) {
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {/* Alert banner - shown when navigating from notification bell */}
+        {alertData && (
+          <div className="rounded-2xl border-2 border-red-500 bg-red-50 dark:bg-red-900/30 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <IconAlertCircle size={24} className="text-red-600 dark:text-red-400" />
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-300">Emergency Alert</h3>
+            </div>
+            <div className="text-sm text-red-800 dark:text-red-200 space-y-1">
+              <p><span className="font-semibold">Guard:</span> {alertData.guardName || 'Unknown'}</p>
+              <p><span className="font-semibold">Location:</span> {alertData.checkpointNames || 'Unknown'}</p>
+              <p><span className="font-semibold">Time:</span> {alertData.time ? new Date(alertData.time).toLocaleString() : 'Recent'}</p>
+              {alertData.message && (
+                <p><span className="font-semibold">Message:</span> {alertData.message}</p>
+              )}
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+              This alert was triggered by a guard. Acknowledge the alert in the notification panel.
+            </p>
           </div>
         )}
 

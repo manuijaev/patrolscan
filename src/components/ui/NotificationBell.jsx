@@ -312,6 +312,7 @@ export default function NotificationBell() {
   }
 
   function acknowledge(itemId) {
+    const item = items.find(n => n.id === itemId)
     setItems(prev =>
       prev.map(n => (n.id === itemId ? { ...n, unread: false, acknowledged: true } : n))
     )
@@ -325,6 +326,11 @@ export default function NotificationBell() {
     queueSyncAction({ type: 'ack', id: itemId })
     setOpen(false)
     flushSyncQueue()
+    
+    // If this is an alert, navigate to incidents page to show details
+    if (item?.type === 'emergency_alert') {
+      navigate('/incidents?alertId=' + itemId)
+    }
   }
 
   function deleteNotification(itemId) {
@@ -365,6 +371,15 @@ export default function NotificationBell() {
 
   function openNotification(item) {
     markIdsRead([item.id], true)
+    
+    // If this is an alert, navigate to incidents with alert details
+    if (item.type === 'emergency_alert') {
+      const params = item.action?.params || {}
+      setOpen(false)
+      navigate(`/incidents?alertId=${item.id}&guardId=${params.guardId || ''}&guardName=${params.guardName || ''}&message=${encodeURIComponent(params.message || '')}`)
+      return
+    }
+    
     const path = buildActionPath(item)
     if (path) {
       setOpen(false)

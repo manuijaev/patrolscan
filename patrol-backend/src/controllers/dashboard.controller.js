@@ -518,18 +518,26 @@ export async function getNotifications(req, res) {
       const guardName = guardNameById.get(guardId) || `Guard #${guardId}`
       const location = scan.location || {}
       const checkpointNames = location.checkpointNames || 'Unknown'
+      const message = location.message || ''
 
       notifications.push({
         id: `alert-${scan.id}`,
         type: 'emergency_alert',
         severity: 'critical',
         title: 'EMERGENCY ALERT',
-        detail: `🚨 ${guardName} triggered an emergency alert! Currently patrolling: ${checkpointNames}`,
+        detail: message || `${guardName} triggered an emergency alert! Currently patrolling: ${checkpointNames}`,
         time: scan.scannedAt,
         unread: true,
         action: {
-          path: '/reports',
-          label: 'Acknowledge Alert',
+          path: '/incidents',
+          label: 'View Alert',
+          params: {
+            alertId: scan.id,
+            guardId: String(guardId),
+            guardName: guardName,
+            checkpointNames: checkpointNames,
+            message: message,
+          },
         },
       })
     }
