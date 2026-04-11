@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  IconDownload,
+} from '@tabler/icons-react'
 import api from '../api/axios'
 import { getToken } from '../auth/authStore'
+import { exportPatrolReport } from '../utils/exportReport'
 
 function formatTime(iso) {
   if (!iso) return '—'
@@ -11,6 +15,91 @@ function formatTime(iso) {
 export default function Patrols() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
+
+  function formatDate(isoString) {
+    try {
+      const date = new Date(isoString)
+      return date.toLocaleDateString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      })
+    } catch {
+      return 'Invalid date'
+    }
+  }
+
+  function formatTime(isoString) {
+    try {
+      const date = new Date(isoString)
+      return date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return 'Invalid time'
+    }
+  }
+
+  function toMetersText(value) {
+    if (typeof value !== 'number' || Number.isNaN(value)) return 'N/A'
+    return `${value.toFixed(2)}m`
+  }
+
+  function exportCSV() {
+    if (logs.length === 0) return
+
+    const headers = ['Date', 'Time', 'Guard', 'Checkpoint', 'Result', 'Reason', 'GPS Accuracy', 'Distance / Allowed']
+    const rows = logs.map(scanItem => [
+      formatDate(scanItem.scannedAt),
+      formatTime(scanItem.scannedAt),
+      scanItem.guardName || 'Unknown',
+      scanItem.checkpointName || 'Unknown',
+      scanItem.result === 'failed' ? 'Failed' : 'Passed',
+      scanItem.failureReason || '',
+      toMetersText(scanItem.location?.accuracy),
+      scanItem.location?.computedDistanceMeters !== undefined
+        ? `${toMetersText(scanItem.location.computedDistanceMeters)} / ${toMetersText(scanItem.location.allowedRadius)}`
+        : 'N/A'
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `patrol-logs-${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPDF() {
+    if (logs.length === 0) return
+
+    const normalizedLogs = logs.map(scanItem => ({
+      ...scanItem,
+      guard: scanItem.guardName,
+      checkpoint: scanItem.checkpointName,
+      Date: formatDate(scanItem.scannedAt),
+      Time: formatTime(scanItem.scannedAt),
+      Reason: scanItem.failureReason || (scanItem.result === 'failed' ? 'Validation failed' : 'Passed'),
+      'GPS Accuracy': scanItem.location?.accuracy,
+      Result: scanItem.result === 'failed' ? 'Failed' : 'Passed'
+    }))
+
+    exportPatrolReport(normalizedLogs, {
+      title: 'Patrol Logs Report',
+      dateRange: 'All Time',
+      generatedBy: 'PatrolScan Admin',
+      filters: []
+    })
+  }
 
   useEffect(() => {
     let active = true
@@ -43,6 +132,29 @@ export default function Patrols() {
           <p className="text-sm text-[color:var(--text-muted)]">
             Review every scan with server-verified timestamps.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportPDF}
+            disabled={!logs.length}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white
+            hover:bg-red-700 transition font-medium disabled:opacity-50
+            disabled:cursor-not-allowed"
+          >
+            <IconDownload size={18} />
+            Export PDF
+          </button>
+          <button
+            onClick={exportCSV}
+            disabled={!logs.length}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--accent)]
+            hover:bg-[color:var(--accent-strong)] transition font-medium disabled:opacity-50
+            disabled:cursor-not-allowed"
+          >
+            <IconDownload size={18} />
+            Export CSV
+          </button>
         </div>
       </div>
 

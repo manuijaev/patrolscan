@@ -532,7 +532,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-2">
-                      {patrol.checkpoints.slice(0, 5).map((cp) => (
+                      {(patrol.checkpoints || []).slice(0, 5).map((cp) => (
                         <div 
                           key={cp.id}
                           className={`flex items-center gap-2 text-sm ${
