@@ -11,7 +11,8 @@ export async function getPatrolAssignments(req, res) {
     const guards = filterGuardsByUser(req.user, allGuards)
     const guardIds = guardIdSet(guards)
     const checkpoints = await getAllCheckpoints()
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not count as patrol completions
+    const scans = filterScansByGuardIds(await getAllScans(), guardIds).filter(s => s.isAlert !== true)
     
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())

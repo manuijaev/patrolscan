@@ -11,7 +11,8 @@ import {
   IconX,
   IconCalendarTime,
   IconShield,
-  IconSettings
+  IconSettings,
+  IconClipboardList
 } from '@tabler/icons-react'
 import { logout, getToken, getUser } from '../../auth/authStore'
 import api from '../../api/axios'
@@ -22,7 +23,8 @@ const baseMenu = [
   { name: 'Guards', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
-  { name: 'Incident & Reports', path: '/reports', icon: IconAlertCircle },
+  { name: 'Reports', path: '/reports', icon: IconClipboardList },
+  { name: 'Incidents', path: '/incidents', icon: IconAlertCircle },
   { name: 'Settings', path: '/settings', icon: IconSettings },
 ]
 const INCIDENTS_SEEN_AT_KEY = 'admin_incidents_seen_at_v1'

@@ -43,8 +43,10 @@ async function getGuardContext(req) {
 }
 
 async function computeMetricsForWindow({ guards, scans, windowStart, windowEnd }) {
+  // Filter out alert scans - they should not be counted as regular patrol scans
+  const regularScans = scans.filter(s => s.isAlert !== true)
   const activeGuardIds = new Set(guards.map(g => Number(g.id)))
-  const windowScans = scans.filter(s => {
+  const windowScans = regularScans.filter(s => {
     const scannedAt = toDate(s.scannedAt)
     return scannedAt >= windowStart && scannedAt < windowEnd && activeGuardIds.has(Number(s.guardId))
   })
@@ -143,7 +145,9 @@ async function computeMetricsForWindow({ guards, scans, windowStart, windowEnd }
 export async function getStats(req, res) {
   try {
     const { guards, guardIds } = await getGuardContext(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not be counted as patrol statistics
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -199,7 +203,9 @@ export async function getStats(req, res) {
 export async function getTimeline(req, res) {
   try {
     const { guards, guardIds } = await getGuardContext(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not appear in timeline as regular scans
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     const guardNameById = new Map(guards.map(g => [String(g.id), g.name]))
     const checkpointNameById = new Map(checkpoints.map(cp => [String(cp.id), cp.name]))
@@ -231,7 +237,9 @@ export async function getTimeline(req, res) {
 export async function getGuardPerformance(req, res) {
   try {
     const { guards, guardIds } = await getGuardContext(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not appear in guard performance metrics
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -273,7 +281,9 @@ export async function getUpcomingPatrols(req, res) {
   try {
     const { guards, guardIds } = await getGuardContext(req)
     const checkpoints = await getAllCheckpoints()
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not appear in patrol completions
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
 
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -322,7 +332,9 @@ export async function getUpcomingPatrols(req, res) {
 export async function getCheckpointStatus(req, res) {
   try {
     const { guardIds } = await getGuardContext(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not appear in checkpoint status
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     
     const now = new Date()
@@ -358,7 +370,8 @@ export async function getNotifications(req, res) {
   try {
     const adminId = Number(req.user?.id || 0)
     const { guards, guardIds } = await getGuardContext(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds)
     const incidents = filterIncidentsByGuardIds(await getAllIncidents(), guardIds)
     const checkpoints = await getAllCheckpoints()
 
@@ -370,6 +383,9 @@ export async function getNotifications(req, res) {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
     const notifications = []
+
+    // Filter scans to exclude alerts for scan-related metrics
+    const regularScans = scans.filter(s => s.isAlert !== true)
 
     // 0) Incident reports from guards
     const recentIncidents = [...incidents]
@@ -400,7 +416,7 @@ export async function getNotifications(req, res) {
     }
 
     // 1) Repeated location failures (same guard/checkpoint, >= 3 in 30 mins)
-    const recentFailedScans = scans.filter(s => {
+    const recentFailedScans = regularScans.filter(s => {
       const scannedAt = new Date(s.scannedAt)
       return scannedAt >= thirtyMinutesAgo && s.result === 'failed'
     })
@@ -444,7 +460,7 @@ export async function getNotifications(req, res) {
     })
 
     // 3) Unauthorized/Unexpected scan attempts
-    const unauthorizedAttempts = scans
+    const unauthorizedAttempts = regularScans
       .filter(s => {
         const reason = (s.failureReason || '').toLowerCase()
         return (
@@ -478,8 +494,10 @@ export async function getNotifications(req, res) {
     }
 
     // 4) Successful scans (informational/other)
-    const successfulScans = scans
-      .filter(s => new Date(s.scannedAt) >= oneDayAgo && s.result !== 'failed')
+    // Use midnight today instead of 24 hours ago for proper "today" filtering
+    const midnightToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const successfulScans = regularScans
+      .filter(s => new Date(s.scannedAt) >= midnightToday && s.result !== 'failed')
       .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))
 
     for (const scan of successfulScans.slice(0, 15)) {

@@ -23,6 +23,7 @@ export default function Layout() {
       '/checkpoints',
       '/patrols',
       '/reports',
+      '/incidents',
     ]
     return orderedRoutes.indexOf(pathname)
   }

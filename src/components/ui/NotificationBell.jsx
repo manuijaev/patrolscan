@@ -329,7 +329,15 @@ export default function NotificationBell() {
     
     // If this is an alert, navigate to incidents page to show details
     if (item?.type === 'emergency_alert') {
-      navigate('/incidents?alertId=' + itemId)
+      const params = item.action?.params || {}
+      const queryParams = new URLSearchParams({
+        alertId: itemId,
+        guardId: params.guardId || '',
+        guardName: params.guardName || '',
+        checkpointNames: params.checkpointNames || '',
+        message: params.message || ''
+      }).toString()
+      navigate(`/incidents?${queryParams}`)
     }
   }
 
@@ -375,8 +383,15 @@ export default function NotificationBell() {
     // If this is an alert, navigate to incidents with alert details
     if (item.type === 'emergency_alert') {
       const params = item.action?.params || {}
+      const queryParams = new URLSearchParams({
+        alertId: item.id,
+        guardId: params.guardId || '',
+        guardName: params.guardName || '',
+        checkpointNames: params.checkpointNames || '',
+        message: params.message || ''
+      }).toString()
       setOpen(false)
-      navigate(`/incidents?alertId=${item.id}&guardId=${params.guardId || ''}&guardName=${params.guardName || ''}&message=${encodeURIComponent(params.message || '')}`)
+      navigate(`/incidents?${queryParams}`)
       return
     }
     
