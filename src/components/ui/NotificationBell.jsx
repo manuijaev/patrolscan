@@ -18,7 +18,7 @@ import { getToken } from '../../auth/authStore'
 const CACHE_KEY = 'admin_notifications_cache_v3'
 const STATE_KEY = 'admin_notifications_state_v3'
 const QUEUE_KEY = 'admin_notifications_sync_queue_v3'
-const CRITICAL_SOUND_URL = '/sounds/public/critical-alert.mp3'
+const CRITICAL_SOUND_URL = '/sounds/public/alert.mp3'
 const STANDARD_SOUND_URL = '/sounds/public/notification-soft.mp3'
 
 function readJson(key, fallback) {

@@ -508,6 +508,32 @@ export async function getNotifications(req, res) {
       })
     }
 
+    // 5) Emergency Alerts from guards
+    const alertScans = scans
+      .filter(s => s.isAlert === true && s.alertAcknowledged !== true)
+      .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt))
+
+    for (const scan of alertScans) {
+      const guardId = Number(scan.guardId)
+      const guardName = guardNameById.get(guardId) || `Guard #${guardId}`
+      const location = scan.location || {}
+      const checkpointNames = location.checkpointNames || 'Unknown'
+
+      notifications.push({
+        id: `alert-${scan.id}`,
+        type: 'emergency_alert',
+        severity: 'critical',
+        title: 'EMERGENCY ALERT',
+        detail: `🚨 ${guardName} triggered an emergency alert! Currently patrolling: ${checkpointNames}`,
+        time: scan.scannedAt,
+        unread: true,
+        action: {
+          path: '/reports',
+          label: 'Acknowledge Alert',
+        },
+      })
+    }
+
     const state = getAdminNotificationState(adminId)
     const resetAt = state.resetAt ? new Date(state.resetAt) : null
     const sorted = notifications

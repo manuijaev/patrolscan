@@ -346,29 +346,61 @@ export async function createScan(req, res) {
 // Send emergency alert from guard
 export async function sendAlert(req, res) {
   try {
-    const { guardId, guardName, message, type, severity } = req.body
+    const guardId = req.user.id
+    const { guardName, message, type, severity, checkpointIds } = req.body
     
-    // Create a critical notification for supervisors
-    // This will be picked up by the dashboard notifications
-    const notification = {
-      type: type || 'emergency_alert',
-      severity: severity || 'critical',
-      title: 'EMERGENCY ALERT',
-      message: message || `Guard ${guardName || 'Unknown'} triggered an emergency alert!`,
+    // Get guard's assigned checkpoints
+    const guard = await getGuardById(guardId)
+    const assignedCheckpoints = guard?.assignedCheckpoints || []
+    
+    // Get checkpoint details
+    const checkpoints = await getAllCheckpoints()
+    const assignedCheckpointNames = assignedCheckpoints.map(cpId => {
+      const cp = checkpoints.find(c => String(c.id) === String(cpId))
+      return cp?.name || `Checkpoint ${cpId}`
+    }).join(', ')
+    
+    // Create a scan record with isAlert flag to be picked up by notifications
+    const alertId = `alert-${Date.now()}-${guardId}`
+    const scanData = {
+      id: alertId,
       guardId,
-      guardName,
-      timestamp: new Date().toISOString(),
-      unread: true
+      checkpointId: checkpointIds?.[0] || assignedCheckpoints[0] || 'unknown',
+      scannedAt: new Date().toISOString(),
+      result: 'passed', // Alert is not a failure
+      failureReason: null,
+      isAlert: true,
+      alertAcknowledged: false,
+      location: {
+        alert: true,
+        message: message || 'EMERGENCY ALERT TRIGGERED',
+        guardName: guardName || guard?.name || 'Unknown Guard',
+        checkpointNames: assignedCheckpointNames || 'Unknown',
+        timestamp: new Date().toISOString()
+      }
     }
     
-    // Store the alert - in a real app, you'd save to DB
-    // For now, we'll just return success
-    console.log('[EMERGENCY ALERT]', notification)
+    // Create the alert scan record
+    await createScan(scanData)
+    
+    console.log('[EMERGENCY ALERT] Created:', {
+      id: alertId,
+      guardId,
+      guardName: guardName || guard?.name,
+      checkpoints: assignedCheckpointNames,
+      message
+    })
     
     res.json({ 
       ok: true, 
       message: 'Alert sent to supervisors',
-      alert: notification
+      alert: {
+        id: alertId,
+        guardId,
+        guardName: guardName || guard?.name,
+        checkpoints: assignedCheckpointNames,
+        timestamp: scanData.scannedAt
+      }
     })
   } catch (error) {
     res.status(500).json({ error: error.message })

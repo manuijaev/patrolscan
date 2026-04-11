@@ -37,6 +37,15 @@ const Scan = sequelize.define('Scan', {
   notes: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  // Emergency alert flag - when guard triggers emergency alert
+  isAlert: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  alertAcknowledged: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'scans',
