@@ -7,6 +7,7 @@ import {
   remove,
   removeBulk,
   sendAlert,
+  getAlerts,
 } from '../controllers/scans.controller.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
 
@@ -24,6 +25,7 @@ router.get('/my-scans', requireAuth(), getByGuard)
 // Admin routes
 router.get('/', requireAuth(['admin', 'supervisor']), getAll)
 router.get('/date-range', requireAuth(['admin', 'supervisor']), getByDateRange)
+router.get('/alerts', requireAuth(['admin', 'supervisor']), getAlerts)
 router.delete('/bulk-delete', requireAuth(['admin', 'supervisor']), removeBulk)
 router.delete('/:id', requireAuth(['admin', 'supervisor']), remove)
 

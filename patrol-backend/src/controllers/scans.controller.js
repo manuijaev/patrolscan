@@ -253,7 +253,9 @@ async function validateAndPersistScan({ guardId, payload }) {
 export async function getAll(req, res) {
   try {
     const { guards, guardIds } = await getAccessibleGuards(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans - they should not appear in Reports
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
@@ -277,7 +279,9 @@ export async function getByDateRange(req, res) {
   try {
     const { startDate, endDate } = req.query
     const { guards, guardIds } = await getAccessibleGuards(req)
-    const scans = filterScansByGuardIds(await getScansByDateRangeDb(startDate, endDate), guardIds)
+    // Filter out alert scans - they should not appear in Reports
+    const allScans = await getScansByDateRangeDb(startDate, endDate)
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     const checkpoints = await getAllCheckpoints()
     res.json(enrichScansWithNames(scans, guards, checkpoints))
   } catch (error) {
@@ -326,7 +330,9 @@ export async function removeBulk(req, res) {
 export async function listScans(req, res) {
   try {
     const { guardIds } = await getAccessibleGuards(req)
-    const scans = filterScansByGuardIds(await getAllScans(), guardIds)
+    // Filter out alert scans
+    const allScans = await getAllScans()
+    const scans = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert !== true)
     res.json(scans)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -339,6 +345,19 @@ export async function createScan(req, res) {
     const guardId = req.user.id
     const outcome = await validateAndPersistScan({ guardId, payload: req.body })
     return res.status(outcome.status).json(outcome.body)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+}
+
+// Get all alerts (scans with isAlert=true)
+export async function getAlerts(req, res) {
+  try {
+    const { guards, guardIds } = await getAccessibleGuards(req)
+    const allScans = await getAllScans()
+    const alerts = filterScansByGuardIds(allScans, guardIds).filter(s => s.isAlert === true)
+    const checkpoints = await getAllCheckpoints()
+    res.json(enrichScansWithNames(alerts, guards, checkpoints))
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
