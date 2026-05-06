@@ -76,6 +76,13 @@ body {
   background-color: var(--bg) !important;
   color: var(--text);
   font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+html.auth-no-scroll,
+body.auth-no-scroll {
+  overflow: hidden !important;
+  overscroll-behavior: none;
 }
 
 /* Force background colors for dark mode - comprehensive override */

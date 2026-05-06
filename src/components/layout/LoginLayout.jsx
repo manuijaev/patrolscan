@@ -16,6 +16,16 @@ export default function LoginLayout({
     return () => setMounted(false)
   }, [])
 
+  // Lock page scrolling on login screens to prevent side scrollbars during transitions.
+  useEffect(() => {
+    document.documentElement.classList.add('auth-no-scroll')
+    document.body.classList.add('auth-no-scroll')
+    return () => {
+      document.documentElement.classList.remove('auth-no-scroll')
+      document.body.classList.remove('auth-no-scroll')
+    }
+  }, [])
+
   // Ensure saved theme is applied on login screens too
   useEffect(() => {
     const stored = localStorage.getItem('theme')
@@ -31,7 +41,7 @@ export default function LoginLayout({
   }, [])
 
   return (
-    <div className={`login-shell min-h-screen flex items-center justify-center p-4 
+    <div className={`login-shell min-h-screen overflow-hidden flex items-center justify-center p-4 
       bg-[color:var(--bg)] transition-all duration-500 
       ${mounted ? 'opacity-100' : 'opacity-0'}`}>
       
