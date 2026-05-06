@@ -20,7 +20,7 @@ import api from '../../api/axios'
 const baseMenu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
   { name: 'Upcoming Patrols', path: '/upcoming-patrols', icon: IconCalendarTime },
-  { name: 'Guards', path: '/guards', icon: IconUsers },
+  { name: 'Supervisor', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
   { name: 'Reports', path: '/reports', icon: IconClipboardList },
