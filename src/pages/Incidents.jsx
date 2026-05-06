@@ -369,37 +369,31 @@ export default function Incidents({ showHeading = true }) {
                     <p className="text-xs font-medium text-[color:var(--text-muted)]">
                       Photos ({incident.images.length})
                     </p>
-                    <div
-                      className="grid gap-1"
-                      style={{
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))',
-                        gridAutoRows: 'minmax(50px, 1fr)',
-                      }}
-                    >
+                    <div className="flex flex-wrap gap-2">
                       {incident.images.map((src, idx) => {
                         const imageKey = `${incident.id ?? 'incident'}-${idx}`
                         const isDownloading = downloadingImageKey === imageKey
                         return (
                           <div
                             key={imageKey}
-                            className="relative overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)] shadow-[var(--shadow)] transition hover:border-[color:var(--accent)]"
+                            className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] shadow-[var(--shadow)] transition hover:border-[color:var(--accent)]"
                           >
                             <button
                               type="button"
                               onClick={() => openPreview(src, incident, idx)}
-                              className="group relative block w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                              className="group relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
                               aria-label={`Preview incident photo ${idx + 1}`}
                             >
-                              <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                              <div className="relative h-full w-full overflow-hidden">
                                 <img
                                   src={src}
                                   alt={`Incident ${incident.id} photo ${idx + 1}`}
                                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                 />
                                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                                <div className="pointer-events-none absolute left-2 bottom-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-white">
-                                  <IconPhoto size={10} />
-                                  Photo {idx + 1}
+                                <div className="pointer-events-none absolute left-1 bottom-1 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                                  <IconPhoto size={9} />
+                                  {idx + 1}
                                 </div>
                               </div>
                             </button>
@@ -410,10 +404,10 @@ export default function Incidents({ showHeading = true }) {
                                 event.stopPropagation()
                                 handleDownloadImage(src, incident.id, idx)
                               }}
-                              className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-full border border-white/70 bg-black/60 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-white transition hover:bg-black/80 disabled:cursor-wait disabled:opacity-70"
+                              className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-full border border-white/70 bg-black/60 px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wide text-white transition hover:bg-black/80 disabled:cursor-wait disabled:opacity-70"
                               aria-label={`Download incident photo ${idx + 1}`}
                             >
-                              <IconDownload size={14} className={isDownloading ? 'animate-spin' : ''} />
+                              <IconDownload size={12} className={isDownloading ? 'animate-spin' : ''} />
                               <span className="hidden sm:inline">Download</span>
                             </button>
                           </div>

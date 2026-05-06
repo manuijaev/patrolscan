@@ -1719,13 +1719,16 @@ export default function ScanQR() {
                     className="hidden"
                   />
                   {incidentImages.length > 0 && (
-                    <div className="grid grid-cols-3 gap-1 mt-1">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {incidentImages.map((src, idx) => (
-                        <div key={idx} className="relative">
+                        <div
+                          key={idx}
+                          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"
+                        >
                           <img
                             src={src}
                             alt={`Incident preview ${idx + 1}`}
-                            className="h-16 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                            className="h-full w-full object-cover"
                           />
                           <button
                             type="button"
