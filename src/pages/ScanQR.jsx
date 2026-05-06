@@ -33,8 +33,8 @@ const CHECKPOINT_COOLDOWN_MS = 120000 // 2 minutes per checkpoint
 const FAIL_COOLDOWN_MS = 10000 // 10 seconds for failed scans
 const MAX_PROCESSING_TIME = 10000 // 10 seconds max processing time
 const MAX_INCIDENT_IMAGES = 10
-const MAX_INCIDENT_IMAGE_DATA_URL_LENGTH = 1_500_000
-const MAX_INCIDENT_TOTAL_DATA_URL_LENGTH = 8_000_000
+const MAX_INCIDENT_IMAGE_DATA_URL_LENGTH = 900_000
+const MAX_INCIDENT_TOTAL_DATA_URL_LENGTH = 4_500_000
 
 function getDeletionRangeStart(range) {
   const now = new Date()
@@ -1110,7 +1110,7 @@ export default function ScanQR() {
       } else if (err?.response?.status === 404) {
         toast.error('Incident API route not found. Check backend URL configuration.')
       } else {
-        toast.error('Failed to submit incident. Please try again.')
+        toast.error(err?.response?.data?.error || 'Failed to submit incident. Please try again.')
       }
     } finally {
       setIncidentSubmitting(false)

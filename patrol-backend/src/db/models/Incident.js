@@ -13,7 +13,7 @@ export async function defineIncidentModel() {
       allowNull: false
     },
     checkpointId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: false
     },
     comment: {

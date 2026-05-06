@@ -11,8 +11,8 @@ let Incident = null
 export async function initIncidentModel() {
   if (!Incident) {
     Incident = await defineIncidentModel()
-    // Sync table if it doesn't exist
-    await Incident.sync()
+    // Keep incident schema aligned when the model evolves.
+    await Incident.sync({ alter: { drop: false } })
   }
   return Incident
 }

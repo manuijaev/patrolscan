@@ -16,20 +16,22 @@ export const create = async (req, res) => {
   try {
     const guardId = req.user.id
     const { checkpointId, comment, images } = req.body
+    const normalizedCheckpointId = String(checkpointId || '').trim()
+    const normalizedComment = String(comment || '').trim()
 
     if (!guardId) {
       return res.status(401).json({ error: 'Guard not authenticated' })
     }
 
-    if (!checkpointId) {
+    if (!normalizedCheckpointId) {
       return res.status(400).json({ error: 'Checkpoint is required' })
     }
 
-    if (!comment || !comment.trim()) {
+    if (!normalizedComment) {
       return res.status(400).json({ error: 'Incident description is required' })
     }
 
-    const checkpoint = await db.getCheckpointById(checkpointId)
+    const checkpoint = await db.getCheckpointById(normalizedCheckpointId)
     if (!checkpoint) {
       return res.status(404).json({ error: 'Checkpoint not found' })
     }
@@ -43,8 +45,8 @@ export const create = async (req, res) => {
     const Incident = await db.initIncidentModel()
     const newIncident = await Incident.create({
       guardId,
-      checkpointId,
-      comment: comment.trim(),
+      checkpointId: normalizedCheckpointId,
+      comment: normalizedComment,
       images: safeImages
     })
 
