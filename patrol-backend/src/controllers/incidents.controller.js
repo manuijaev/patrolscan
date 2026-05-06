@@ -53,7 +53,13 @@ export const create = async (req, res) => {
     res.status(201).json(newIncident)
   } catch (error) {
     console.error('Error creating incident:', error)
-    res.status(500).json({ error: 'Failed to create incident' })
+    const detail =
+      error?.original?.detail ||
+      error?.original?.message ||
+      error?.message ||
+      'Failed to create incident'
+
+    res.status(500).json({ error: detail })
   }
 }
 

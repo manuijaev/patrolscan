@@ -8,11 +8,34 @@ import ScheduleConfig from './ScheduleConfig.js'
 
 let Incident = null
 
+async function ensureIncidentCheckpointIdColumnType() {
+  try {
+    const queryInterface = sequelize.getQueryInterface()
+    const table = await queryInterface.describeTable('incidents')
+    const checkpointIdColumn = table?.checkpointId
+
+    if (!checkpointIdColumn?.type) return
+
+    const normalizedType = String(checkpointIdColumn.type).toUpperCase()
+    const isTextLike = normalizedType.includes('CHAR') || normalizedType.includes('TEXT')
+
+    if (!isTextLike) {
+      await sequelize.query(
+        'ALTER TABLE "incidents" ALTER COLUMN "checkpointId" TYPE TEXT USING "checkpointId"::text'
+      )
+    }
+  } catch (error) {
+    console.error('Failed to normalize incidents.checkpointId column type:', error)
+  }
+}
+
 export async function initIncidentModel() {
   if (!Incident) {
     Incident = await defineIncidentModel()
-    // Keep incident schema aligned when the model evolves.
-    await Incident.sync({ alter: { drop: false } })
+    // Ensure the incident table exists.
+    await Incident.sync()
+    // Keep legacy deployments compatible with string checkpoint IDs (cp-...).
+    await ensureIncidentCheckpointIdColumnType()
   }
   return Incident
 }
