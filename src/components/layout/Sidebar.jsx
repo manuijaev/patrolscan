@@ -108,7 +108,7 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
   }
 
   function handleNavItemClick() {
-    if (variant === 'mobile' && typeof onClose === 'function') {
+    if (typeof onClose === 'function') {
       onClose()
     }
   }

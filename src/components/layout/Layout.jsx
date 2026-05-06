@@ -66,6 +66,11 @@ export default function Layout() {
     return () => clearTimeout(idleTimer)
   }, [routeStage])
 
+  // Always close mobile sidebar after any route change.
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname, location.search])
+
   return (
     <div className="min-h-screen w-full overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
       <div className="flex min-h-screen">
