@@ -107,6 +107,12 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
     window.location.href = '/admin-login'
   }
 
+  function handleNavItemClick() {
+    if (variant === 'mobile' && typeof onClose === 'function') {
+      onClose()
+    }
+  }
+
   return (
     <aside
       className={`
@@ -140,6 +146,7 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
           <NavLink
             key={path}
             to={path}
+            onClick={handleNavItemClick}
             className={({ isActive }) =>
               `
               group flex items-center gap-3 w-full px-4 py-3 rounded-xl transition
