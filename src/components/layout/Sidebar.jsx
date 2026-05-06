@@ -20,7 +20,7 @@ import api from '../../api/axios'
 const baseMenu = [
   { name: 'Dashboard', path: '/dashboard', icon: IconLayoutDashboard },
   { name: 'Upcoming Patrols', path: '/upcoming-patrols', icon: IconCalendarTime },
-  { name: 'Supervisor', path: '/guards', icon: IconUsers },
+  { name: 'Guard', path: '/guards', icon: IconUsers },
   { name: 'Checkpoints', path: '/checkpoints', icon: IconMapPin },
   { name: 'Patrols', path: '/patrols', icon: IconQrcode },
   { name: 'Reports', path: '/reports', icon: IconClipboardList },
@@ -34,10 +34,14 @@ export default function Sidebar({ variant = 'desktop', onClose }) {
   const [incidentCount, setIncidentCount] = useState(0)
   const user = getUser()
   const isSupervisor = user?.role === 'supervisor'
-  const filteredBaseMenu = isSupervisor ? baseMenu.filter(item => item.path !== '/dashboard') : baseMenu
+  const guardsTabLabel = isSupervisor ? 'Guard' : 'Supervisor'
+  const menuWithRoleLabel = baseMenu.map(item =>
+    item.path === '/guards' ? { ...item, name: guardsTabLabel } : item
+  )
+  const filteredBaseMenu = isSupervisor ? menuWithRoleLabel.filter(item => item.path !== '/dashboard') : menuWithRoleLabel
   const navMenu = isSupervisor
     ? [{ name: 'Supervisor Dashboard', path: '/supervisor-dashboard', icon: IconShield }, ...filteredBaseMenu]
-    : baseMenu
+    : menuWithRoleLabel
 
   function getSeenAt() {
     return localStorage.getItem(INCIDENTS_SEEN_AT_KEY)
