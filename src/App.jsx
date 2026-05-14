@@ -13,6 +13,7 @@ import SupervisorDashboard from './pages/SupervisorDashboard'
 import Settings from './pages/Settings'
 
 import AdminLogin from './auth/AdminLogin'
+import AdminRegister from './auth/AdminRegister'
 import GuardLogin from './auth/GuardLogin'
 import RequireAuth from './auth/RequireAuth'
 import { getUser } from './auth/authStore'
@@ -50,6 +51,7 @@ export default function App() {
       {/* Public */}
       <Route path="/" element={<Navigate to="/guard-login" replace />} />
       <Route path="/admin-login" element={<AdminLogin />} />
+      <Route path="/admin-register" element={<AdminRegister />} />
       <Route path="/guard-login" element={<GuardLoginPage />} />
 
       {/* Protected */}

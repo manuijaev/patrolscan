@@ -77,6 +77,13 @@ export default function AdminLogin() {
     setTimeout(() => navigate('/guard-login'), 420)
   }
 
+  function switchToAdminRegister() {
+    if (loading || isSuccess || switchClass) return
+    setSwitchClass('login-flip-out-left')
+    sessionStorage.setItem('login_flip_in', 'left')
+    setTimeout(() => navigate('/admin-register'), 420)
+  }
+
   return (
     <LoginLayout
       title="Admin Portal"
@@ -85,7 +92,15 @@ export default function AdminLogin() {
       transitionClass={`${entryClass} ${switchClass}`.trim()}
       footer={
         <div className="space-y-2">
-          <p>Need access? Contact your system administrator</p>
+          <p>Need access? Register a new admin account</p>
+          <button
+            type="button"
+            onClick={switchToAdminRegister}
+            className="text-sm text-[color:var(--accent)] hover:text-[color:var(--accent-strong)] hover:underline transition"
+            disabled={!!switchClass}
+          >
+            Create Admin Account
+          </button>
           <button
             type="button"
             onClick={switchToGuardLogin}
