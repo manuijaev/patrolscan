@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "build": "echo \"No compile step — backend runs directly\"",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/db/seed.js",

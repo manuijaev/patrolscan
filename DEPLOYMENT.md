@@ -12,8 +12,8 @@
    - Click "New +" > "Web Service"
    - Connect your GitHub repository
    - Select the `patrol-backend` folder
-   - Build Command: `npm install`
-   - Start Command: `npm run dev`
+   - Build Command: `npm install` (or `npm install; npm run build`)
+   - Start Command: `npm run start`
    - Add Environment Variable:
      - `JWT_SECRET` = (click "Generate" to create a secure secret)
 
